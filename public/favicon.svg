@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Rounded background -->
+  <rect width="64" height="64" rx="16" fill="#0f172a"/>
+  
+  <!-- Outer subtle ring -->
+  <circle cx="32" cy="32" r="28" fill="none" stroke="#334155" stroke-width="1"/>
+  
+  <!-- Route Track path -->
+  <path d="M 16 46 Q 26 48 28 36 T 42 22" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <circle cx="16" cy="46" r="3.5" fill="#f59e0b"/>
+
+  <!-- GPS Map Location Pin -->
+  <path d="M 42 10 C 35.373 10 30 15.373 30 22 C 30 30.5 42 41 42 41 C 42 41 54 30.5 54 22 C 54 15.373 48.627 10 42 10 Z" fill="#f59e0b"/>
+  <circle cx="42" cy="20" r="4" fill="#0f172a"/>
+
+  <!-- Report Document / Sheet Icon overlay -->
+  <rect x="14" y="14" width="13" height="17" rx="2" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="17" y1="18" x2="24" y2="18" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="17" y1="22" x2="22" y2="22" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="17" y1="26" x2="20" y2="26" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

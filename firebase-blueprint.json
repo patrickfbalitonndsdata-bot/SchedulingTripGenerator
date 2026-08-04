@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Firebase Blueprint for Trip Analysis KMZ Generator",
+  "entities": {
+    "users": {
+      "type": "object",
+      "description": "User profiles and status permissions",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role", "status"]
+    },
+    "app_settings": {
+      "type": "object",
+      "description": "Global application configuration settings",
+      "properties": {
+        "technicians": { "type": "array", "items": { "type": "string" } },
+        "regions": { "type": "array", "items": { "type": "string" } },
+        "adminPasscode": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "trip_reports": {
+      "type": "object",
+      "description": "Historical trip reports and analysis records",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "technician": { "type": "string" },
+        "dateOfSchedule": { "type": "string" },
+        "predictedDailyWorkingHours": { "type": "string" },
+        "actualDailyWorkingHours": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "technician", "dateOfSchedule"]
+    }
+  }
+}

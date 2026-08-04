@@ -1,0 +1,6 @@
+{
+  "name": "Trip Analysis & KMZ Parser System",
+  "description": "Automated Samsara KMZ/KML log parser and Trip Analysis report encoder with Field Time and T-Sheets tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
