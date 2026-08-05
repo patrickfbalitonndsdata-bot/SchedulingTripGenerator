@@ -20,7 +20,7 @@ interface RouteMapViewerProps {
 export const RouteMapViewer: React.FC<RouteMapViewerProps> = ({
   onBackToDashboard
 }) => {
-  const SCHEZ_URL = 'https://scheztripngo.netlify.app/';
+  const SCHEZ_URL = 'https://schezpath.netlify.app/';
   const [key, setKey] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
@@ -105,8 +105,8 @@ export const RouteMapViewer: React.FC<RouteMapViewerProps> = ({
               <Globe className="w-6 h-6 animate-spin" />
             </div>
             <div>
-              <p className="text-white font-bold text-sm">Loading SchezTripNGo Workspace...</p>
-              <p className="text-slate-400 text-xs mt-1">Connecting to https://scheztripngo.netlify.app/</p>
+              <p className="text-white font-bold text-sm">Loading SchezPath Workspace...</p>
+              <p className="text-slate-400 text-xs mt-1">Connecting to https://schezpath.netlify.app/</p>
             </div>
           </div>
         )}
@@ -133,13 +133,13 @@ export const RouteMapViewer: React.FC<RouteMapViewerProps> = ({
             </div>
             <div>
               <h4 className="font-extrabold text-sm text-slate-100 flex items-center gap-2">
-                <span>SchezTripNGo Connected Suite</span>
+                <span>SchezPath Connected Suite</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
                   Netlify Hosted
                 </span>
               </h4>
               <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                Use the integrated SchezTripNGo planner above to coordinate technician schedules, manage trips, and cross-reference field trip reports seamlessly. If your browser blocks embedded frames, click <strong>Open New Tab</strong> above.
+                Use the integrated SchezPath planner above to coordinate technician schedules, manage trips, and cross-reference field trip reports seamlessly. If your browser blocks embedded frames, click <strong>Open New Tab</strong> above.
               </p>
             </div>
           </div>
@@ -148,7 +148,7 @@ export const RouteMapViewer: React.FC<RouteMapViewerProps> = ({
             onClick={handleOpenExternal}
             className="shrink-0 text-xs font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 underline decoration-amber-400/50 hover:decoration-amber-300 transition-colors"
           >
-            <span>Launch standalone SchezTripNGo</span>
+            <span>Launch standalone SchezPath</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </div>
