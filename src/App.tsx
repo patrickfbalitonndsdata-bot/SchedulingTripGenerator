@@ -488,6 +488,8 @@ export default function App() {
         {activeTab === 'sheet' && (
           <TripAnalysisTemplate
             reportsList={reportsList}
+            historyReports={historyReports}
+            userId={currentUserProfile?.uid}
             onUpdateReportsList={async (updatedList) => {
               setReportsList(updatedList);
               const userId = currentUserProfile?.uid;
