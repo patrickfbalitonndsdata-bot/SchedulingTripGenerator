@@ -3,7 +3,7 @@ import { SettingsConfig, TechnicianOption } from '../types';
 import { saveSettings } from '../utils/defaultSettings';
 import { UserManagement } from './UserManagement';
 import { UserProfile } from '../lib/firebase';
-import { Users, MapPin, Wrench, Clock, Save, Plus, Trash2, CheckCircle2, Shield, Settings as SettingsIcon, UserCog } from 'lucide-react';
+import { Users, MapPin, Wrench, Clock, Save, Plus, Trash2, CheckCircle2, Shield, Settings as SettingsIcon, UserCog, Pencil, Check, X } from 'lucide-react';
 
 interface SettingsProps {
   settings: SettingsConfig;
@@ -21,6 +21,43 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
   const [newTechName, setNewTechName] = useState('');
   const [newTechRegion, setNewTechRegion] = useState(localSettings.regions[0] || 'South Central');
   const [newTechPlate, setNewTechPlate] = useState('');
+
+  // Editing Technician State
+  const [editingTechId, setEditingTechId] = useState<string | null>(null);
+  const [editTechName, setEditTechName] = useState('');
+  const [editTechRegion, setEditTechRegion] = useState('');
+  const [editTechPlate, setEditTechPlate] = useState('');
+
+  const handleStartEditTechnician = (tech: TechnicianOption) => {
+    setEditingTechId(tech.id);
+    setEditTechName(tech.name);
+    setEditTechRegion(tech.defaultRegion);
+    setEditTechPlate(tech.defaultLicensePlate);
+  };
+
+  const handleCancelEditTechnician = () => {
+    setEditingTechId(null);
+    setEditTechName('');
+    setEditTechRegion('');
+    setEditTechPlate('');
+  };
+
+  const handleSaveEditTechnician = (id: string) => {
+    if (!editTechName.trim()) return;
+    const updatedTechs = localSettings.technicians.map(t => {
+      if (t.id === id) {
+        return {
+          ...t,
+          name: editTechName.trim(),
+          defaultRegion: editTechRegion || 'South Central',
+          defaultLicensePlate: editTechPlate.trim() || '100XYZ'
+        };
+      }
+      return t;
+    });
+    setLocalSettings({ ...localSettings, technicians: updatedTechs });
+    setEditingTechId(null);
+  };
 
   const handleAddTechnician = () => {
     if (!newTechName.trim()) return;
@@ -150,7 +187,10 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
       )}
 
       {activeSubTab === 'users' ? (
-        <UserManagement currentUserProfile={currentUserProfile || null} />
+        <UserManagement 
+          currentUserProfile={currentUserProfile || null} 
+          availableRegions={localSettings.regions}
+        />
       ) : (
         <>
 
@@ -176,24 +216,99 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {localSettings.technicians.map((tech) => (
-                <tr key={tech.id} className="hover:bg-slate-50">
-                  <td className="p-3 font-bold text-slate-900">{tech.name}</td>
-                  <td className="p-3 font-medium text-slate-600">{tech.defaultRegion}</td>
-                  <td className="p-3 font-mono font-semibold text-slate-800">{tech.defaultLicensePlate}</td>
-                  <td className="p-3 text-right">
-                    {localSettings.technicians.length > 1 && (
-                      <button
-                        onClick={() => handleRemoveTechnician(tech.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                        title="Remove Technician"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {localSettings.technicians.map((tech) => {
+                const isEditing = editingTechId === tech.id;
+                return (
+                  <tr key={tech.id} className={isEditing ? "bg-amber-50/50" : "hover:bg-slate-50"}>
+                    <td className="p-2.5">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editTechName}
+                          onChange={(e) => setEditTechName(e.target.value)}
+                          placeholder="Technician name..."
+                          className="w-full px-2 py-1 bg-white border border-amber-400 rounded-lg text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                      ) : (
+                        <span className="font-bold text-slate-900">{tech.name}</span>
+                      )}
+                    </td>
+
+                    <td className="p-2.5">
+                      {isEditing ? (
+                        <select
+                          value={editTechRegion}
+                          onChange={(e) => setEditTechRegion(e.target.value)}
+                          className="w-full px-2 py-1 bg-white border border-amber-400 rounded-lg text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        >
+                          {localSettings.regions.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="font-medium text-slate-600">{tech.defaultRegion}</span>
+                      )}
+                    </td>
+
+                    <td className="p-2.5">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editTechPlate}
+                          onChange={(e) => setEditTechPlate(e.target.value)}
+                          placeholder="License plate..."
+                          className="w-full px-2 py-1 bg-white border border-amber-400 rounded-lg text-xs font-mono font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                      ) : (
+                        <span className="font-mono font-semibold text-slate-800">{tech.defaultLicensePlate}</span>
+                      )}
+                    </td>
+
+                    <td className="p-2.5 text-right">
+                      {isEditing ? (
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => handleSaveEditTechnician(tech.id)}
+                            className="p-1.5 text-emerald-700 hover:bg-emerald-100/80 rounded-lg border border-emerald-300 bg-emerald-50 transition-all cursor-pointer"
+                            title="Save Technician Details"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={handleCancelEditTechnician}
+                            className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-lg border border-slate-300 bg-slate-100 transition-all cursor-pointer"
+                            title="Cancel Editing"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end space-x-1.5">
+                          <button
+                            onClick={() => handleStartEditTechnician(tech)}
+                            className="p-1.5 text-amber-800 hover:bg-amber-100/80 rounded-lg border border-amber-300 bg-amber-50 transition-all cursor-pointer"
+                            title="Edit Technician Details"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+
+                          {localSettings.technicians.length > 1 && (
+                            <button
+                              onClick={() => handleRemoveTechnician(tech.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              title="Remove Technician"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
