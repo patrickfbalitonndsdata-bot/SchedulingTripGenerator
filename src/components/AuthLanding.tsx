@@ -257,10 +257,10 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
             <Lock className="w-7 h-7" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            Trip Analysis Generator
+            SchEZTrip
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 font-medium">
-            Samsara Log KMZ Parser & Technician Scheduling Portal
+            Trip Analysis Automator
           </p>
         </div>
 
