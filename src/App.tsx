@@ -604,18 +604,18 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-slate-200">Trip Analysis KMZ Report System</span>
+            <span className="font-semibold text-slate-200">SchEZTrip</span>
             <span className="text-slate-600">•</span>
-            <span className="text-slate-400">Automated Samsara Log Parser</span>
+            <span className="text-slate-400">Trip Analysis Automator</span>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-slate-400">
-            <p>
-              © 2026 Scheduling Team - Trip Analysis Generator, All rights reserved.
+            <p className="text-slate-400">
+              © 2026 Scheduling Team - Trip Analysis Automator, All rights reserved.
             </p>
-            <span className="hidden sm:inline text-slate-700">|</span>
-            <p className="font-medium text-slate-300">
-              Developed by <span className="text-amber-400 font-bold tracking-wide">Patrick Franz O.B.</span>
+            <span className="hidden sm:inline text-slate-800">|</span>
+            <p className="text-[10px] text-slate-600/70 font-normal select-none tracking-wide">
+              Developed by Patrick Franz O.B.
             </p>
           </div>
         </div>
