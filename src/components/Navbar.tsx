@@ -94,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              <span>SchezTripNGo</span>
+              <span>SchEZPath</span>
             </button>
 
             {/* Settings Tab - Visible for ADMIN accounts only */}
