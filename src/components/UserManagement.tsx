@@ -20,14 +20,19 @@ import {
   Save,
   MapPin,
   Mail,
-  Sliders
+  Sliders,
+  Check
 } from 'lucide-react';
 
 interface UserManagementProps {
   currentUserProfile: UserProfile | null;
+  availableRegions?: string[];
 }
 
-export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfile }) => {
+export const UserManagement: React.FC<UserManagementProps> = ({ 
+  currentUserProfile,
+  availableRegions = ['South Central', 'North', 'West', 'East', 'Central']
+}) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -42,7 +47,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editAssignedRegion, setEditAssignedRegion] = useState('');
+  const [editAssignedRegions, setEditAssignedRegions] = useState<string[]>([]);
   const [editRole, setEditRole] = useState<'user' | 'admin'>('user');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
   const [editNewPassword, setEditNewPassword] = useState('');
@@ -147,7 +152,12 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
     setEditDisplayName(user.displayName || '');
     setEditUsername(user.username || '');
     setEditEmail(user.email || '');
-    setEditAssignedRegion(user.assignedRegion || 'South Central');
+    
+    // Parse comma-separated assigned regions or array
+    const raw = user.assignedRegion || (availableRegions[0] || 'South Central');
+    const parsed = raw.split(',').map(s => s.trim()).filter(Boolean);
+    setEditAssignedRegions(parsed.length > 0 ? parsed : [availableRegions[0] || 'South Central']);
+
     setEditRole(user.role || 'user');
     setEditStatus(user.status || 'active');
     setEditNewPassword('');
@@ -171,11 +181,15 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
       }
 
       // 2. Update profile fields & optional new password
+      const regionString = editAssignedRegions.length > 0 
+        ? editAssignedRegions.join(', ')
+        : (availableRegions[0] || 'South Central');
+
       const updated = await updateUserProfileFields(selectedUserForEdit.uid, {
         displayName: editDisplayName,
         username: editUsername,
         email: editEmail,
-        assignedRegion: editAssignedRegion,
+        assignedRegion: regionString,
         newPassword: editNewPassword.trim() ? editNewPassword.trim() : undefined
       });
 
@@ -609,23 +623,51 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
                   />
                 </div>
 
-                {/* Assigned Region */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Assigned Region</span>
+                {/* Assigned Region(s) (Multi-Select synced with Technician Regions) */}
+                <div className="space-y-1.5 sm:col-span-2 border-t border-slate-100 pt-2.5">
+                  <label className="font-bold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-xs">
+                      <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Assigned Operating Region(s)</span>
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {editAssignedRegions.length} region{editAssignedRegions.length !== 1 ? 's' : ''} selected
+                    </span>
                   </label>
-                  <select
-                    value={editAssignedRegion}
-                    onChange={(e) => setEditAssignedRegion(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none"
-                  >
-                    <option value="South Central">South Central</option>
-                    <option value="North">North</option>
-                    <option value="West">West</option>
-                    <option value="East">East</option>
-                    <option value="Central">Central</option>
-                  </select>
+                  
+                  <p className="text-[11px] text-slate-500">
+                    Click to toggle regions assigned to this account (options synced with Technician Regions):
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-300 rounded-xl min-h-[42px] items-center">
+                    {availableRegions.map((reg) => {
+                      const isSelected = editAssignedRegions.includes(reg);
+                      return (
+                        <button
+                          key={reg}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              if (editAssignedRegions.length > 1) {
+                                setEditAssignedRegions(editAssignedRegions.filter(r => r !== reg));
+                              }
+                            } else {
+                              setEditAssignedRegions([...editAssignedRegions, reg]);
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                            isSelected
+                              ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-slate-950' : 'bg-slate-300'}`} />
+                          <span>{reg}</span>
+                          {isSelected && <Check className="w-3 h-3 text-slate-950 stroke-[3]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* System Role */}
