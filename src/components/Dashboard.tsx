@@ -48,7 +48,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Trip Analysis KMZ Report Generator
+            SchEZTrip - Trip Analysis Automator
           </h1>
 
           <p className="text-slate-300 text-sm leading-relaxed">
