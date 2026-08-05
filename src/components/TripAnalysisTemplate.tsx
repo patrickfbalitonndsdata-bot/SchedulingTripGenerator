@@ -11,6 +11,8 @@ import { parseRemarksFromString, formatRemarksToString, getJobStatusFromRemark }
 
 interface TripAnalysisTemplateProps {
   reportsList: TripReportData[];
+  historyReports?: TripReportData[];
+  userId?: string;
   onUpdateReportsList: (updatedList: TripReportData[]) => void;
   onClearAllReports?: () => void;
   onAddTechnicianReport: (newReport: TripReportData) => void;
@@ -23,6 +25,8 @@ interface TripAnalysisTemplateProps {
 
 export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
   reportsList,
+  historyReports,
+  userId,
   onUpdateReportsList,
   onClearAllReports,
   onAddTechnicianReport,
@@ -38,10 +42,17 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [openRemarksPanelIdx, setOpenRemarksPanelIdx] = useState<number | null>(null);
 
+  const getKnownHistory = () => {
+    if (historyReports && historyReports.length > 0) {
+      return historyReports;
+    }
+    return getStoredHistoryReports(userId);
+  };
+
   // Auto-sync Running Total - Field Time Cal with history storage + active reports calculation
   useEffect(() => {
     if (!reportsList || reportsList.length === 0) return;
-    const history = getStoredHistoryReports();
+    const history = getKnownHistory();
     const allKnown = [...history, ...reportsList];
 
     let needsUpdate = false;
@@ -51,7 +62,8 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
         r.weeklyDateRange,
         allKnown,
         r.id,
-        r.predictedDailyWorkingHours
+        r.predictedDailyWorkingHours,
+        r.dateOfSchedule
       );
       const cleanedStart = cleanShiftTimeString(r.startShift);
       const cleanedEnd = cleanShiftTimeString(r.endShift);
@@ -70,7 +82,7 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
     if (needsUpdate) {
       onUpdateReportsList(updated);
     }
-  }, [reportsList]);
+  }, [reportsList, historyReports, userId]);
 
   const handleConfirmClear = () => {
     if (onClearAllReports) {
@@ -284,13 +296,14 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
     const currentRep = reportsList[reportIdx];
     if (!currentRep) return;
 
-    const allKnown = [...getStoredHistoryReports(), ...reportsList];
+    const allKnown = [...getKnownHistory(), ...reportsList];
     const newWeeklyTotal = calculateWeeklyFieldTimeTotal(
       currentRep.technician,
       currentRep.weeklyDateRange,
       allKnown,
       currentRep.id,
-      currentRep.predictedDailyWorkingHours
+      currentRep.predictedDailyWorkingHours,
+      currentRep.dateOfSchedule
     );
 
     const updated = [...reportsList];
