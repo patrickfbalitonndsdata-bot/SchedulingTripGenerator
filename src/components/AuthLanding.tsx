@@ -8,7 +8,10 @@ import {
   registerUserAccount,
   loginUserAccount,
   requestRegistrationVerificationCode,
-  verifyEmailCode
+  verifyEmailCode,
+  requestForgotPasswordCode,
+  verifyForgotPasswordCode,
+  resetPasswordWithVerifiedCode
 } from '../lib/firebase';
 import { 
   Lock, 
@@ -51,6 +54,20 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginSuccessMsg, setLoginSuccessMsg] = useState<string | null>(null);
+
+  // Forgot Password State
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<'none' | 'request' | 'code' | 'reset'>('none');
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotTargetEmail, setForgotTargetEmail] = useState('');
+  const [forgotSentCode, setForgotSentCode] = useState<string | null>(null);
+  const [forgotEnteredCode, setForgotEnteredCode] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotCodeCopied, setForgotCodeCopied] = useState(false);
 
   // Register State
   const [regName, setRegName] = useState('');
@@ -117,6 +134,94 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
       }
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  // Forgot Password Flow Handlers
+  const handleStartForgotPassword = () => {
+    setForgotIdentifier(loginEmail.trim());
+    setForgotPasswordStep('request');
+    setForgotError(null);
+    setLoginError(null);
+  };
+
+  const handleRequestForgotCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+
+    if (!forgotIdentifier.trim()) {
+      setForgotError('Please enter your email address or username.');
+      return;
+    }
+
+    setForgotLoading(true);
+
+    try {
+      const res = await requestForgotPasswordCode(forgotIdentifier.trim());
+      setForgotTargetEmail(res.email);
+      setForgotSentCode(res.code);
+      setResendCooldown(30);
+      setForgotPasswordStep('code');
+      setForgotEnteredCode('');
+    } catch (err: any) {
+      console.error('Forgot password request error:', err);
+      setForgotError(err.message || 'Failed to request verification code.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleVerifyForgotCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+
+    if (!forgotEnteredCode.trim() || forgotEnteredCode.trim().length !== 6) {
+      setForgotError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setForgotLoading(true);
+
+    try {
+      await verifyForgotPasswordCode(forgotTargetEmail, forgotEnteredCode);
+      setForgotPasswordStep('reset');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
+    } catch (err: any) {
+      console.error('Verify forgot code error:', err);
+      setForgotError(err.message || 'Invalid verification code.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+
+    if (!forgotNewPassword || forgotNewPassword.trim().length < 6) {
+      setForgotError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError('Passwords do not match. Please re-enter passwords.');
+      return;
+    }
+
+    setForgotLoading(true);
+
+    try {
+      await resetPasswordWithVerifiedCode(forgotTargetEmail, forgotNewPassword);
+      setLoginSuccessMsg('Password changed successfully! You can now log in with your new password.');
+      setLoginEmail(forgotTargetEmail);
+      setLoginPassword('');
+      setForgotPasswordStep('none');
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      setForgotError(err.message || 'Failed to update password.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -302,64 +407,309 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
 
           {/* LOGIN FORM */}
           {activeTab === 'login' && (
-            <form onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-4">
-              {loginError && (
-                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold flex items-start space-x-2.5 animate-shake">
-                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">{loginError}</span>
-                </div>
+            <>
+              {forgotPasswordStep === 'none' && (
+                <form onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-4">
+                  {loginSuccessMsg && (
+                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-semibold flex items-start space-x-2.5 animate-fade-in">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{loginSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {loginError && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold flex items-start space-x-2.5 animate-shake">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{loginError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 block">Username or Email Address</label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="username"
+                      placeholder="Enter username or email address"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-slate-300 block">Password</label>
+                      <span className="text-[11px] font-medium text-slate-500/60 select-none pointer-events-none italic">
+                        Forgot Password? Please ask for Administrator
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        required
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="w-full pl-4 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer"
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loginLoading}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-extrabold text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+                  >
+                    {loginLoading ? (
+                      <span>Signing In...</span>
+                    ) : (
+                      <>
+                        <span>Sign In to Workspace</span>
+                        <LogIn className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
               )}
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300 block">Username or Email Address</label>
-                <input
-                  type="text"
-                  required
-                  autoComplete="username"
-                  placeholder="Enter username or email address"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
-                />
-              </div>
+              {/* FORGOT PASSWORD STEP 1: REQUEST CODE */}
+              {forgotPasswordStep === 'request' && (
+                <form onSubmit={handleRequestForgotCode} className="space-y-4 animate-fade-in">
+                  <div className="flex items-center space-x-2 text-amber-400 font-bold text-sm border-b border-slate-800 pb-2">
+                    <KeyRound className="w-4 h-4" />
+                    <span>Forgot Password Reset</span>
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300 block">Password</label>
-                <div className="relative">
-                  <input
-                    type={showLoginPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full pl-4 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
-                  />
+                  {forgotError && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold flex items-start space-x-2.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{forgotError}</span>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Enter your registered email address or username. We will send a 6-digit verification code to your email.
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 block">Username or Email Address</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. technician@ndsdata.com or username"
+                      value={forgotIdentifier}
+                      onChange={(e) => setForgotIdentifier(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setForgotPasswordStep('none')}
+                      className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+                    >
+                      Back to Login
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {forgotLoading ? (
+                        <span>Sending...</span>
+                      ) : (
+                        <>
+                          <span>Send Code</span>
+                          <Send className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* FORGOT PASSWORD STEP 2: VERIFY CODE */}
+              {forgotPasswordStep === 'code' && (
+                <form onSubmit={handleVerifyForgotCode} className="space-y-4 animate-fade-in">
+                  <div className="flex items-center space-x-2 text-amber-400 font-bold text-sm border-b border-slate-800 pb-2">
+                    <Mail className="w-4 h-4" />
+                    <span>Enter 6-Digit Verification Code</span>
+                  </div>
+
+                  {forgotError && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold flex items-start space-x-2.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{forgotError}</span>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    A 6-digit verification code was sent to <strong className="text-amber-300">{forgotTargetEmail}</strong>.
+                  </p>
+
+                  {/* Code Display Box for Easy Copy/Auto-fill */}
+                  {forgotSentCode && (
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between text-xs text-amber-300 font-medium">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Verification Code Sent:</span>
+                        </span>
+                        <span className="font-mono text-[11px] text-amber-400/80">Expires in 10 mins</span>
+                      </div>
+                      <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-amber-500/30">
+                        <span className="font-mono text-xl font-black text-amber-400 tracking-widest pl-2">
+                          {forgotSentCode}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(forgotSentCode);
+                            setForgotEnteredCode(forgotSentCode);
+                            setForgotCodeCopied(true);
+                            setTimeout(() => setForgotCodeCopied(false), 2000);
+                          }}
+                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer border border-amber-500/40"
+                        >
+                          {forgotCodeCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{forgotCodeCopied ? 'Copied & Auto-filled!' : 'Copy & Auto-fill'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 block">6-Digit Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      placeholder="123456"
+                      value={forgotEnteredCode}
+                      onChange={(e) => setForgotEnteredCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full text-center tracking-widest font-mono text-lg font-bold py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setForgotPasswordStep('request')}
+                      className="text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Back</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={resendCooldown > 0 || forgotLoading}
+                      onClick={handleRequestForgotCode}
+                      className="text-amber-400 hover:text-amber-300 font-bold disabled:opacity-40 disabled:hover:no-underline hover:underline transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
+                    </button>
+                  </div>
+
                   <button
-                    type="button"
-                    onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
                   >
-                    {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {forgotLoading ? (
+                      <span>Verifying Code...</span>
+                    ) : (
+                      <>
+                        <span>Verify Code & Continue</span>
+                        <CheckCircle2 className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
-                </div>
-              </div>
+                </form>
+              )}
 
-              <button
-                type="submit"
-                disabled={loginLoading}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-extrabold text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                {loginLoading ? (
-                  <span>Signing In...</span>
-                ) : (
-                  <>
-                    <span>Sign In to Workspace</span>
-                    <LogIn className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
+              {/* FORGOT PASSWORD STEP 3: RESET PASSWORD */}
+              {forgotPasswordStep === 'reset' && (
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4 animate-fade-in">
+                  <div className="flex items-center space-x-2 text-amber-400 font-bold text-sm border-b border-slate-800 pb-2">
+                    <KeyRound className="w-4 h-4" />
+                    <span>Create New Password</span>
+                  </div>
+
+                  {forgotError && (
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-semibold flex items-start space-x-2.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">{forgotError}</span>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Enter your new account password for <strong className="text-amber-300">{forgotTargetEmail}</strong>.
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 block">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showForgotNewPassword ? 'text' : 'password'}
+                        required
+                        minLength={6}
+                        placeholder="At least 6 characters"
+                        value={forgotNewPassword}
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        className="w-full pl-4 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                        className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer"
+                      >
+                        {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 block">Confirm New Password</label>
+                    <input
+                      type={showForgotNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Re-enter new password"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+                  >
+                    {forgotLoading ? (
+                      <span>Changing Password...</span>
+                    ) : (
+                      <>
+                        <span>Change Password & Return to Login</span>
+                        <CheckCircle2 className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </>
           )}
 
           {/* REGISTER FORM */}
