@@ -44,14 +44,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex flex-col justify-center">
               <div className="flex items-center space-x-1.5">
                 <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-amber-300 transition-colors whitespace-nowrap">
-                  Trip Analysis
+                  SchEZTrip
                 </span>
                 <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-md whitespace-nowrap">
-                  KMZ System
+                  Automator
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 font-medium tracking-wide whitespace-nowrap hidden sm:block">
-                Automated Log Parser & Form Generator
+                Trip Analysis Automator
               </p>
             </div>
           </div>
