@@ -293,14 +293,17 @@ export function calculateWeeklyFieldTimeTotal(
   weeklyDateRange: string,
   allReports: TripReportData[],
   currentReportId?: string,
-  currentPredictedHours?: string
+  currentPredictedHours?: string,
+  currentDateOfSchedule?: string
 ): string {
   if (!technicianName) return currentPredictedHours || '0 hour/s 0 minutes';
 
   const techLower = technicianName.trim().toLowerCase();
-  const weekRangeClean = (weeklyDateRange || '').trim().toLowerCase();
+  
+  // Calculate Sunday-Saturday work week string for target
+  const targetWeekNormalized = calculateWorkWeekRange(currentDateOfSchedule || weeklyDateRange);
 
-  // Deduplicate reports by unique ID or technician+dateOfSchedule
+  // Deduplicate reports by unique ID or technician + dateOfSchedule
   const uniqueReportsMap = new Map<string, TripReportData>();
 
   for (const r of allReports) {
@@ -327,10 +330,12 @@ export function calculateWeeklyFieldTimeTotal(
 
   for (const r of uniqueReports) {
     const rTech = (r.technician || '').trim().toLowerCase();
-    const rWeek = (r.weeklyDateRange || '').trim().toLowerCase();
+    if (rTech !== techLower) continue;
 
-    // Match technician and work week range
-    if (rTech === techLower && (!weekRangeClean || !rWeek || rWeek === weekRangeClean)) {
+    // Normalize work week for this report
+    const rWeekNormalized = calculateWorkWeekRange(r.dateOfSchedule || r.weeklyDateRange);
+
+    if (rWeekNormalized === targetWeekNormalized || !targetWeekNormalized) {
       if (currentReportId && r.id === currentReportId) {
         currentReportCounted = true;
         const predToUse = currentPredictedHours !== undefined ? currentPredictedHours : r.predictedDailyWorkingHours;
