@@ -25,6 +25,8 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
+import { SettingsConfig } from '../types';
+import { INITIAL_SETTINGS } from '../utils/defaultSettings';
 
 const firebaseConfig = {
   apiKey: firebaseConfigData.apiKey,
@@ -478,148 +480,6 @@ export async function verifyEmailCode(
   return true;
 }
 
-// Request Verification Code for Forgot Password
-export async function requestForgotPasswordCode(
-  identifier: string
-): Promise<{ code: string; expiresAt: number; email: string }> {
-  const cleanIdentifier = identifier.trim().toLowerCase();
-
-  if (!cleanIdentifier) {
-    throw new Error('Please enter your email address or username.');
-  }
-
-  const usersCol = collection(db, 'users');
-  let targetEmail = '';
-
-  // 1. Try finding user by email, usernameLower, or username
-  let snap = await getDocs(query(usersCol, where('email', '==', cleanIdentifier)));
-
-  if (snap.empty) {
-    snap = await getDocs(query(usersCol, where('usernameLower', '==', cleanIdentifier)));
-  }
-
-  if (snap.empty) {
-    snap = await getDocs(query(usersCol, where('username', '==', identifier.trim())));
-  }
-
-  if (snap.empty && (cleanIdentifier === SUPER_ADMIN_EMAIL || cleanIdentifier === 'admin101' || cleanIdentifier === 'admin')) {
-    targetEmail = SUPER_ADMIN_EMAIL;
-  } else if (!snap.empty) {
-    const userDoc = snap.docs[0].data() as UserProfile;
-    targetEmail = userDoc.email ? userDoc.email.trim().toLowerCase() : '';
-  }
-
-  if (!targetEmail) {
-    throw new Error('No registered account found matching that email address or username.');
-  }
-
-  // Generate 6-digit verification code
-  const code = Math.floor(100000 + Math.floor(Math.random() * 900000)).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
-
-  const verificationRef = doc(db, 'emailVerifications', targetEmail);
-  try {
-    await setDoc(verificationRef, {
-      email: targetEmail,
-      code,
-      createdAt: new Date().toISOString(),
-      expiresAt
-    });
-  } catch (err: any) {
-    console.error('Error generating forgot password verification code:', err);
-    throw new Error('Database permission error generating verification code. Please try again.');
-  }
-
-  return { code, expiresAt, email: targetEmail };
-}
-
-// Verify Forgot Password Code
-export async function verifyForgotPasswordCode(
-  email: string,
-  inputCode: string
-): Promise<boolean> {
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanCode = inputCode.trim();
-
-  if (!cleanCode || cleanCode.length !== 6) {
-    throw new Error('Please enter the 6-digit verification code.');
-  }
-
-  const verificationRef = doc(db, 'emailVerifications', cleanEmail);
-  const snap = await getDoc(verificationRef);
-
-  if (!snap.exists()) {
-    throw new Error('No active verification code found for this account. Please click "Resend Code".');
-  }
-
-  const data = snap.data() as EmailVerificationRecord;
-
-  if (Date.now() > data.expiresAt) {
-    throw new Error('The verification code has expired. Please click "Resend Code" to get a new code.');
-  }
-
-  if (data.code !== cleanCode) {
-    throw new Error('Invalid verification code. Please check the code and try again.');
-  }
-
-  return true;
-}
-
-// Reset User Password After Code Verification
-export async function resetPasswordWithVerifiedCode(
-  email: string,
-  newPass: string
-): Promise<boolean> {
-  const cleanEmail = email.trim().toLowerCase();
-
-  if (!newPass || newPass.trim().length < 6) {
-    throw new Error('Password must be at least 6 characters long.');
-  }
-
-  const usersCol = collection(db, 'users');
-  const snap = await getDocs(query(usersCol, where('email', '==', cleanEmail)));
-
-  if (snap.empty) {
-    // If Super Admin fallback doc not created yet, create or update it
-    if (cleanEmail === SUPER_ADMIN_EMAIL) {
-      const superUid = `super_admin_101`;
-      const superProfile: UserProfile = {
-        uid: superUid,
-        email: SUPER_ADMIN_EMAIL,
-        username: 'admin101',
-        usernameLower: 'admin101',
-        displayName: 'Admin101',
-        role: 'admin',
-        status: 'active',
-        assignedRegion: 'South Central',
-        avatarId: 'panda',
-        createdAt: new Date().toISOString(),
-        passwordHash: hashPassword(newPass.trim())
-      };
-      await setUserProfile(superProfile);
-    } else {
-      throw new Error('User record not found in database.');
-    }
-  } else {
-    const userDoc = snap.docs[0];
-    const userDocRef = doc(db, 'users', userDoc.id);
-    await setDoc(userDocRef, {
-      passwordHash: hashPassword(newPass.trim()),
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  }
-
-  // Clean up verification code doc
-  try {
-    const verificationRef = doc(db, 'emailVerifications', cleanEmail);
-    await deleteDoc(verificationRef);
-  } catch (e) {
-    console.warn('Verification doc cleanup notice:', e);
-  }
-
-  return true;
-}
-
 // Login user with Firebase Auth or Firestore fallback (accepts email OR username)
 export async function loginUserAccount(identifier: string, pass: string): Promise<UserProfile> {
   const cleanIdentifier = identifier.trim().toLowerCase();
@@ -838,92 +698,6 @@ export async function updateUserStatusOrRole(
   }
 }
 
-// Full Profile Edit for Superadmin across all accounts
-export async function adminUpdateUserProfile(
-  targetUid: string,
-  updates: {
-    displayName?: string;
-    username?: string;
-    email?: string;
-    assignedRegion?: string;
-    avatarId?: string;
-    role?: 'admin' | 'user';
-    status?: 'active' | 'inactive';
-    newPassword?: string;
-  },
-  executorProfile: UserProfile | null
-): Promise<UserProfile> {
-  if (!executorProfile || !isSuperAdmin(executorProfile)) {
-    throw new Error('ACCESS DENIED: Only Superadmin (Admin101) can edit user profile settings for accounts.');
-  }
-
-  const userDocRef = doc(db, 'users', targetUid);
-  const snap = await getDoc(userDocRef);
-  if (!snap.exists()) {
-    throw new Error('User record not found in database.');
-  }
-
-  const currentData = snap.data() as UserProfile;
-  const targetIsSuper = isSuperAdmin(currentData);
-
-  // Superadmin protection
-  if (targetIsSuper) {
-    if (updates.role && updates.role !== 'admin') {
-      throw new Error('Superadmin account (Admin101) role cannot be changed.');
-    }
-    if (updates.status && updates.status !== 'active') {
-      throw new Error('Superadmin account (Admin101) status cannot be set to inactive.');
-    }
-  }
-
-  const cleanUsername = updates.username !== undefined ? updates.username.trim() : (currentData.username || '');
-  const cleanUsernameLower = cleanUsername.toLowerCase();
-
-  // Validate username uniqueness if modified and non-empty
-  if (cleanUsernameLower && cleanUsernameLower !== (currentData.usernameLower || currentData.username?.toLowerCase() || '')) {
-    const usersCol = collection(db, 'users');
-    const qUser = query(usersCol, where('usernameLower', '==', cleanUsernameLower));
-    const snapUser = await getDocs(qUser);
-    if (!snapUser.empty && snapUser.docs.some(d => d.id !== targetUid)) {
-      throw new Error('This username is already taken by another account.');
-    }
-  }
-
-  const cleanEmail = updates.email !== undefined ? updates.email.trim().toLowerCase() : currentData.email;
-
-  // Validate email uniqueness if modified
-  if (cleanEmail && cleanEmail !== (currentData.email || '').trim().toLowerCase()) {
-    const usersCol = collection(db, 'users');
-    const qEmail = query(usersCol, where('email', '==', cleanEmail));
-    const snapEmail = await getDocs(qEmail);
-    if (!snapEmail.empty && snapEmail.docs.some(d => d.id !== targetUid)) {
-      throw new Error('This email address is already registered to another user account.');
-    }
-  }
-
-  const updatedProfile: UserProfile = {
-    ...currentData,
-    displayName: updates.displayName !== undefined ? updates.displayName.trim() : currentData.displayName,
-    username: cleanUsername,
-    usernameLower: cleanUsernameLower,
-    email: cleanEmail,
-    assignedRegion: updates.assignedRegion !== undefined ? updates.assignedRegion : (currentData.assignedRegion || 'South Central'),
-    avatarId: updates.avatarId !== undefined ? updates.avatarId : (currentData.avatarId || 'panda'),
-    role: updates.role !== undefined ? (targetIsSuper ? 'admin' : updates.role) : currentData.role,
-    status: updates.status !== undefined ? (targetIsSuper ? 'active' : updates.status) : currentData.status,
-    updatedAt: new Date().toISOString()
-  };
-
-  if (updates.newPassword && updates.newPassword.trim()) {
-    updatedProfile.passwordHash = hashPassword(updates.newPassword.trim());
-  }
-
-  const cleanedUpdatedProfile = JSON.parse(JSON.stringify(updatedProfile));
-  await setDoc(userDocRef, cleanedUpdatedProfile, { merge: true });
-
-  return cleanedUpdatedProfile;
-}
-
 // Delete user account and cleanup user data (Admin / Superadmin only)
 export async function deleteUserAccount(
   targetUid: string,
@@ -1109,6 +883,58 @@ export function subscribeToUserReports(
     }
   );
 
+  return unsubscribe;
+}
+
+// Global App Settings Database Persistence (Technician roster, vehicle plates, regions, etc.)
+export async function fetchGlobalSettingsFromFirestore(): Promise<SettingsConfig | null> {
+  try {
+    const docRef = doc(db, 'app_settings', 'global');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as SettingsConfig;
+    }
+  } catch (err) {
+    console.error('Error fetching global app settings from Firestore:', err);
+  }
+  return null;
+}
+
+export async function saveGlobalSettingsToFirestore(settings: SettingsConfig): Promise<void> {
+  try {
+    const docRef = doc(db, 'app_settings', 'global');
+    const cleaned = JSON.parse(JSON.stringify(settings));
+    await setDoc(docRef, {
+      ...cleaned,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.error('Error saving global app settings to Firestore:', err);
+  }
+}
+
+export function subscribeToGlobalSettings(
+  onData: (settings: SettingsConfig) => void
+): () => void {
+  const docRef = doc(db, 'app_settings', 'global');
+  const unsubscribe = onSnapshot(
+    docRef,
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as SettingsConfig;
+        if (data && data.technicians && data.regions) {
+          onData(data);
+        }
+      } else {
+        // Initialize global settings in Firestore database if not present yet
+        saveGlobalSettingsToFirestore(INITIAL_SETTINGS);
+        onData(INITIAL_SETTINGS);
+      }
+    },
+    (err) => {
+      console.error('Error in global settings Firestore listener:', err);
+    }
+  );
   return unsubscribe;
 }
 
