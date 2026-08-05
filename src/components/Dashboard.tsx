@@ -99,53 +99,59 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Quick Summary Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Current Technician</span>
-            <Clock className="w-4 h-4 text-amber-500" />
+      {activeReport && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-wider">Current Technician</span>
+              <Clock className="w-4 h-4 text-amber-500" />
+            </div>
+            <p className="text-2xl font-extrabold text-slate-900">
+              {activeReport.technician || 'Technician'}
+            </p>
+            <div className="flex items-center text-xs text-slate-500 space-x-2">
+              <span className="font-medium text-slate-700">Region:</span>
+              <span>{activeReport.region || 'Unassigned'}</span>
+              {activeReport.licensePlate && (
+                <>
+                  <span>•</span>
+                  <span>Plate: {activeReport.licensePlate}</span>
+                </>
+              )}
+            </div>
           </div>
-          <p className="text-2xl font-extrabold text-slate-900">
-            {activeReport ? activeReport.technician : 'Poche, Matthew'}
-          </p>
-          <div className="flex items-center text-xs text-slate-500 space-x-2">
-            <span className="font-medium text-slate-700">Region:</span>
-            <span>{activeReport ? activeReport.region : 'South Central'}</span>
-            <span>•</span>
-            <span>Plate: {activeReport ? activeReport.licensePlate : '175HCP'}</span>
-          </div>
-        </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Samsara Shift Hours</span>
-            <Clock className="w-4 h-4 text-emerald-500" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-wider">Samsara Shift Hours</span>
+              <Clock className="w-4 h-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-extrabold text-slate-900">
+              {activeReport.totalHoursSamsara || '0 hour/s 0 minutes'}
+            </p>
+            <div className="flex items-center text-xs text-slate-500 space-x-2">
+              <span className="font-medium text-slate-700">Shift:</span>
+              <span>{activeReport.startShift && activeReport.endShift ? `${activeReport.startShift} - ${activeReport.endShift}` : 'No shift logged'}</span>
+            </div>
           </div>
-          <p className="text-2xl font-extrabold text-slate-900">
-            {activeReport ? activeReport.totalHoursSamsara : '12 hour/s 30 minutes'}
-          </p>
-          <div className="flex items-center text-xs text-slate-500 space-x-2">
-            <span className="font-medium text-slate-700">Shift:</span>
-            <span>{activeReport ? `${activeReport.startShift} - ${activeReport.endShift}` : '06:30 AM - 07:00 PM'}</span>
-          </div>
-        </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Field Time vs T-Sheets</span>
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-wider">Field Time vs T-Sheets</span>
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+            </div>
+            <div className="flex items-baseline space-x-3">
+              <span className="text-2xl font-extrabold text-slate-900">
+                {activeReport.predictedDailyWorkingHours || '0h 0m'}
+              </span>
+              <span className="text-xs text-slate-500">vs {activeReport.actualDailyWorkingHours || '0h 0m'}</span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Date: {activeReport.dateOfSchedule || activeReport.weeklyDateRange || 'N/A'}
+            </p>
           </div>
-          <div className="flex items-baseline space-x-3">
-            <span className="text-2xl font-extrabold text-slate-900">
-              {activeReport ? activeReport.predictedDailyWorkingHours : '12h 30m'}
-            </span>
-            <span className="text-xs text-slate-500">vs {activeReport ? activeReport.actualDailyWorkingHours : '11h 0m'}</span>
-          </div>
-          <p className="text-xs text-slate-500">
-            Variance: +1 hour 30 mins predicted buffer
-          </p>
         </div>
-      </div>
+      )}
 
       {/* History / Recent Processed Logs */}
       {historyReports.length > 0 && (
