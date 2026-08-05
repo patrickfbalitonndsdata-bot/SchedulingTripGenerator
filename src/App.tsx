@@ -14,11 +14,13 @@ import {
   saveUserReportToFirestore,
   deleteUserReportFromFirestore,
   clearUserReportsFromFirestore,
-  subscribeToUserReports
+  subscribeToUserReports,
+  subscribeToGlobalSettings,
+  saveGlobalSettingsToFirestore
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { TripReportData, SettingsConfig } from './types';
-import { getStoredSettings } from './utils/defaultSettings';
+import { getStoredSettings, saveSettings } from './utils/defaultSettings';
 import { createSampleTripReport, computePredictedDailyWorkingHours } from './utils/kmlParser';
 import { 
   getStoredHistoryReports, 
@@ -92,6 +94,17 @@ export default function App() {
       setAuthChecking(false);
     });
 
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to real-time global settings (Technician roster, vehicle plates, regions) from Firestore DB
+  useEffect(() => {
+    const unsubscribe = subscribeToGlobalSettings((fsSettings) => {
+      if (fsSettings && fsSettings.technicians && fsSettings.regions) {
+        setSettings(fsSettings);
+        saveSettings(fsSettings);
+      }
+    });
     return () => unsubscribe();
   }, []);
 
@@ -537,7 +550,11 @@ export default function App() {
           {activeTab === 'settings' && currentUserProfile?.role === 'admin' && (
             <Settings
               settings={settings}
-              onUpdateSettings={(newSettings) => setSettings(newSettings)}
+              onUpdateSettings={(newSettings) => {
+                setSettings(newSettings);
+                saveSettings(newSettings);
+                saveGlobalSettingsToFirestore(newSettings);
+              }}
               onLockAdminSession={handleLockAdminSession}
               currentUserProfile={currentUserProfile}
             />
