@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, getAllUsers, updateUserStatusOrRole, deleteUserAccount, SUPER_ADMIN_EMAIL, isSuperAdmin } from '../lib/firebase';
+import { 
+  UserProfile, 
+  getAllUsers, 
+  updateUserStatusOrRole, 
+  deleteUserAccount, 
+  SUPER_ADMIN_EMAIL, 
+  isSuperAdmin,
+  adminUpdateUserProfile 
+} from '../lib/firebase';
+import { CUTE_AVATARS, getAvatarById, AvatarOption } from '../utils/avatars';
 import { 
   Users, 
   Shield, 
@@ -13,7 +22,16 @@ import {
   Trash2, 
   Crown, 
   User,
-  Lock
+  Lock,
+  Settings,
+  Eye,
+  EyeOff,
+  Smile,
+  X,
+  KeyRound,
+  Mail,
+  MapPin,
+  Save
 } from 'lucide-react';
 
 interface UserManagementProps {
@@ -29,6 +47,22 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Super Admin Profile Settings Modal State
+  const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRegion, setEditRegion] = useState('South Central');
+  const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+  const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
+  const [editAvatarId, setEditAvatarId] = useState('panda');
+  const [editNewPassword, setEditNewPassword] = useState('');
+  const [editConfirmPassword, setEditConfirmPassword] = useState('');
+  const [editShowPassword, setEditShowPassword] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   const currentIsSuper = isSuperAdmin(currentUserProfile);
 
@@ -51,6 +85,77 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleOpenEditModal = (u: UserProfile) => {
+    setUserToEdit(u);
+    setEditDisplayName(u.displayName || '');
+    setEditUsername(u.username || '');
+    setEditEmail(u.email || '');
+    setEditRegion(u.assignedRegion || 'South Central');
+    setEditRole(u.role || 'user');
+    setEditStatus(u.status || 'active');
+    setEditAvatarId(u.avatarId || 'panda');
+    setEditNewPassword('');
+    setEditConfirmPassword('');
+    setEditShowPassword(false);
+    setEditError(null);
+    setShowAvatarPicker(false);
+  };
+
+  const handleSaveAdminUserProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEdit || !currentUserProfile) return;
+    setEditError(null);
+
+    if (!editDisplayName.trim()) {
+      setEditError("Full Display Name is required.");
+      return;
+    }
+
+    if (!editUsername.trim()) {
+      setEditError("Username is required.");
+      return;
+    }
+
+    if (!editEmail.trim() || !editEmail.includes('@')) {
+      setEditError("Please enter a valid email address.");
+      return;
+    }
+
+    if (editNewPassword.trim()) {
+      if (editNewPassword.trim().length < 6) {
+        setEditError("New password must be at least 6 characters long.");
+        return;
+      }
+      if (editNewPassword !== editConfirmPassword) {
+        setEditError("Passwords do not match. Please re-enter passwords.");
+        return;
+      }
+    }
+
+    setEditSaving(true);
+
+    try {
+      const updated = await adminUpdateUserProfile(userToEdit.uid, {
+        displayName: editDisplayName.trim(),
+        username: editUsername.trim(),
+        email: editEmail.trim(),
+        assignedRegion: editRegion,
+        avatarId: editAvatarId,
+        role: editRole,
+        status: editStatus,
+        newPassword: editNewPassword.trim() ? editNewPassword.trim() : undefined
+      }, currentUserProfile);
+
+      setUsers(prev => prev.map(u => u.uid === userToEdit.uid ? updated : u));
+      showToast(`Profile settings for ${updated.displayName || updated.email} updated successfully!`);
+      setUserToEdit(null);
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update user profile settings.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleToggleStatus = async (user: UserProfile) => {
@@ -321,6 +426,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
 
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end space-x-2">
+                        {/* Super Admin Profile Settings Icon */}
+                        {currentIsSuper && (
+                          <button
+                            disabled={isWorking}
+                            onClick={() => handleOpenEditModal(u)}
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-900 border border-amber-300 transition-all cursor-pointer shadow-2xs"
+                            title="Super Admin Account Profile Settings (Edit display name, username, email, region, role, status, avatar & password)"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         {/* Toggle Status Button */}
                         <button
                           disabled={isCurrent || isWorking || targetIsSuper}
@@ -442,6 +559,262 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUserProfi
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Super Admin User Profile Settings Modal */}
+      {userToEdit && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-amber-100 text-amber-800 rounded-2xl">
+                  <Settings className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                    Super Admin Profile Settings
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Modify profile details, credentials, and permissions for <span className="font-semibold text-slate-800">{userToEdit.displayName || userToEdit.email}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUserToEdit(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveAdminUserProfile} className="space-y-5">
+              {/* Avatar Preview & Selection */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getAvatarById(editAvatarId).bgGradient} flex items-center justify-center text-2xl shadow-sm border ${getAvatarById(editAvatarId).borderColor}`}>
+                    <span>{getAvatarById(editAvatarId).emoji}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Account Avatar</span>
+                    <span className="text-[11px] text-slate-500">{getAvatarById(editAvatarId).name}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Smile className="w-4 h-4 text-amber-500" />
+                  <span>{showAvatarPicker ? 'Hide Avatars' : 'Change Avatar'}</span>
+                </button>
+              </div>
+
+              {/* Avatar Picker Box */}
+              {showAvatarPicker && (
+                <div className="grid grid-cols-4 gap-2 p-3 bg-slate-100/80 border border-slate-200 rounded-2xl">
+                  {CUTE_AVATARS.map((av: AvatarOption) => (
+                    <button
+                      key={av.id}
+                      type="button"
+                      onClick={() => {
+                        setEditAvatarId(av.id);
+                        setShowAvatarPicker(false);
+                      }}
+                      className={`p-2 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                        editAvatarId === av.id
+                          ? 'bg-amber-500 text-slate-950 font-bold ring-2 ring-amber-400'
+                          : 'bg-white hover:bg-amber-50 text-slate-700'
+                      }`}
+                    >
+                      <span className="text-xl">{av.emoji}</span>
+                      <span className="text-[10px] truncate max-w-full mt-0.5">{av.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Display Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Display Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      required
+                      value={editDisplayName}
+                      onChange={(e) => setEditDisplayName(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Username */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <span className="text-slate-400 font-bold text-xs absolute left-3 top-2">@</span>
+                    <input
+                      type="text"
+                      required
+                      value={editUsername}
+                      onChange={(e) => setEditUsername(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Email Address */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="email"
+                      required
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Assigned Region */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Assigned Region
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <select
+                      value={editRegion}
+                      onChange={(e) => setEditRegion(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
+                    >
+                      <option value="South Central">South Central</option>
+                      <option value="North Central">North Central</option>
+                      <option value="West">West</option>
+                      <option value="East">East</option>
+                      <option value="Central">Central</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* System Role */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    System Role
+                  </label>
+                  <select
+                    disabled={isSuperAdmin(userToEdit)}
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as 'admin' | 'user')}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="user">User / Technician</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+
+                {/* Account Status */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Account Status
+                  </label>
+                  <select
+                    disabled={isSuperAdmin(userToEdit)}
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as 'active' | 'inactive')}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive / Pending</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Password Reset Section */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <KeyRound className="w-4 h-4 text-amber-500" />
+                  <span>Reset Password for User</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <input
+                      type={editShowPassword ? 'text' : 'password'}
+                      placeholder="New Password (optional)"
+                      value={editNewPassword}
+                      onChange={(e) => setEditNewPassword(e.target.value)}
+                      className="w-full pl-3 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditShowPassword(!editShowPassword)}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      {editShowPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
+                  <input
+                    type={editShowPassword ? 'text' : 'password'}
+                    placeholder="Confirm New Password"
+                    value={editConfirmPassword}
+                    onChange={(e) => setEditConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={editSaving}
+                  onClick={() => setUserToEdit(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {editSaving ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Profile...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save User Profile</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
