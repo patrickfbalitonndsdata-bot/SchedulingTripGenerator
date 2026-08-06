@@ -3,6 +3,8 @@ export const STANDARD_REMARKS_OPTIONS: string[] = [
   'Assigned project/s incomplete',
   'Assigned project/s Job not done',
   'No Issue/s found',
+  'LADOTD Monday Notes: LADOTD installation will be continued tomorrow Tuesday schedule',
+  'LADOTD Tuesday Notes: Monday Schedule was continued today (LADOTD)',
   'No assigned schedule',
   'Vehicle not used',
   'Assigned project/s complete based on Field report',
@@ -19,6 +21,16 @@ export const STANDARD_REMARKS_OPTIONS: string[] = [
   'No Schedule with Samsara Log/Activity',
   'Custom Notes:'
 ];
+
+/**
+ * Mapping for pre-extraction options that require a cleaned/shortened display line on the Trip Report sheet
+ */
+export const REMARKS_OUTPUT_MAP: Record<string, string> = {
+  'LADOTD Monday Notes: LADOTD installation will be continued tomorrow Tuesday schedule':
+    'Notes: LADOTD installation will be continued Tomorrow Tuesday schedule',
+  'LADOTD Tuesday Notes: Monday Schedule was continued today (LADOTD)':
+    'Notes: Monday Schedule was continued today (LADOTD)'
+};
 
 export const STATUS_REMARKS = [
   'Assigned project/s completed',
@@ -110,7 +122,7 @@ export function sanitizeRemarksSelection(selectedRemarks: string[]): string[] {
  */
 export function formatRemarksToString(selectedRemarks: string[], customNotes: string = ''): string {
   const sanitized = sanitizeRemarksSelection(selectedRemarks);
-  const lines = [...sanitized];
+  const lines = sanitized.map(remark => REMARKS_OUTPUT_MAP[remark] || remark);
   if (customNotes && customNotes.trim()) {
     const trimmed = customNotes.trim();
     if (!lines.some(l => l.toLowerCase() === trimmed.toLowerCase())) {
@@ -152,8 +164,20 @@ export function parseRemarksFromString(remarksString: string): {
       return;
     }
 
+    // Check mapped outputs first (e.g. "Notes: LADOTD installation...")
+    let foundMatch: string | undefined;
+    for (const [rawOption, outputVal] of Object.entries(REMARKS_OUTPUT_MAP)) {
+      if (outputVal.toLowerCase() === line.toLowerCase() || rawOption.toLowerCase() === line.toLowerCase()) {
+        foundMatch = rawOption;
+        break;
+      }
+    }
+
     // Exact or case-insensitive match against standard options
-    const foundMatch = STANDARD_REMARKS_OPTIONS.find(opt => opt.toLowerCase() === line.toLowerCase());
+    if (!foundMatch) {
+      foundMatch = STANDARD_REMARKS_OPTIONS.find(opt => opt.toLowerCase() === line.toLowerCase());
+    }
+
     if (foundMatch) {
       if (!rawChecked.includes(foundMatch)) {
         rawChecked.push(foundMatch);
