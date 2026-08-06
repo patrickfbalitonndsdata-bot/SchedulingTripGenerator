@@ -1,10 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileCode2, CheckCircle2, AlertCircle, Loader2, Sparkles, ArrowRight, ShieldCheck, Clock, MapPin, Play, User, Calendar, Camera, Cpu, Layers, RefreshCw, X, Plus, UserPlus, Users, Calculator, Timer, Globe } from 'lucide-react';
+import { Upload, FileCode2, CheckCircle2, AlertCircle, Loader2, Sparkles, ArrowRight, ShieldCheck, Clock, MapPin, Play, User, Calendar, Camera, Cpu, Layers, RefreshCw, X, Plus, Users, Calculator, Timer, Globe } from 'lucide-react';
 import { parseKmlOrKmzFile, createSampleTripReport, calculateWorkWeekRange, formatActualWorkingHoursInput, calculateWeeklyFieldTimeTotal } from '../utils/kmlParser';
 import { TripReportData, SettingsConfig } from '../types';
 import { getStoredSettings } from '../utils/defaultSettings';
 import { getStoredHistoryReports } from '../utils/historyStorage';
-import { AddTechnicianModal } from './AddTechnicianModal';
 import { RemarksSelector } from './RemarksSelector';
 import { SearchableTechnicianSelect } from './SearchableTechnicianSelect';
 import { DEFAULT_CHECKED_REMARKS, NO_SCHEDULE_REMARKS, formatRemarksToString } from '../constants/remarks';
@@ -36,7 +35,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pre-Extraction Parameters (User controls before extraction)
@@ -281,17 +279,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Add Technician Modal */}
-      <AddTechnicianModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAddReport={(newReport) => {
-          onReportGenerated(newReport, 'add');
-          onNavigateToSheet();
-        }}
-        existingTechniciansCount={activeReportsList.length}
-      />
-
       {/* Loaded Technicians Banner if multiple exist */}
       {activeReportsList.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-slate-900">
@@ -315,13 +302,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all shrink-0"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add Another Technician</span>
-            </button>
             <button
               onClick={onNavigateToSheet}
               className="inline-flex items-center space-x-1 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all shrink-0"
@@ -349,14 +329,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl transition-all"
-            >
-              <UserPlus className="w-3.5 h-3.5 text-amber-700" />
-              <span>Add Another Technician</span>
-            </button>
             <span className="hidden sm:inline text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
               Required Form Inputs
             </span>
@@ -775,8 +747,8 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
             </h4>
             <p className="text-xs text-slate-400">
               {stagedFile
-                ? `Staged file "${stagedFile.name}" for ${selectedTech}`
-                : 'Select or drag a KMZ/KML file above, or click "+ Add Another Technician"'}
+                ? `Staged file "${stagedFile.name}" for ${selectedTech || 'selected technician'}`
+                : 'Select or drag a KMZ/KML file above to process or append a technician report'}
             </p>
           </div>
 
