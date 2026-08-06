@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { TripReportData, JobRow, SettingsConfig } from '../types';
-import { Printer, Download, Copy, Plus, Trash2, Check, RefreshCw, ArrowLeft, UserPlus, ChevronUp, ChevronDown, Layers, User, RotateCcw, AlertTriangle, FileUp, Sparkles, FileSpreadsheet, ListChecks, Clock, Mail, BookOpen } from 'lucide-react';
+import { Printer, Download, Copy, Plus, Trash2, Check, RefreshCw, ArrowLeft, ChevronUp, ChevronDown, Layers, User, RotateCcw, AlertTriangle, FileUp, Sparkles, FileSpreadsheet, ListChecks, Clock, Mail, BookOpen } from 'lucide-react';
 import { computeWorkingHours, computeShiftTotalHours, calculateWorkWeekRange, detectJobAssignedFromLabel, formatActualWorkingHoursInput, parseActualWorkingHoursString, cleanJobTimeString, computePredictedDailyWorkingHours, parseEquipmentCount, calculateWeeklyFieldTimeTotal, getDayScheduleString, isPenndotRegionOrTech, cleanShiftTimeString } from '../utils/kmlParser';
 import { getStoredHistoryReports } from '../utils/historyStorage';
-import { AddTechnicianModal } from './AddTechnicianModal';
 import { RemarksSelector } from './RemarksSelector';
 import { ExportOutlookEmailModal } from './ExportOutlookEmailModal';
 import { SearchableTechnicianSelect } from './SearchableTechnicianSelect';
@@ -37,7 +36,6 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
   onOpenUserManual
 }) => {
   const [copied, setCopied] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [openRemarksPanelIdx, setOpenRemarksPanelIdx] = useState<number | null>(null);
@@ -318,16 +316,6 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Add Technician Modal */}
-      <AddTechnicianModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAddReport={(newReport) => {
-          onAddTechnicianReport(newReport);
-        }}
-        existingTechniciansCount={reportsList.length}
-      />
-
       {/* Clear / Refresh Confirmation Modal */}
       {isClearModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
@@ -350,7 +338,7 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
                 <span>Ready for New Log Uploads:</span>
               </span>
               <p className="text-slate-700">
-                After clearing, you can upload fresh Samsara KMZ or KML files from the Dashboard or use "+ Add Another Technician".
+                After clearing, you can upload fresh Samsara KMZ or KML files from the Dashboard.
               </p>
             </div>
 
@@ -410,15 +398,6 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
           >
             <RotateCcw className="w-4 h-4 text-rose-600" />
             <span>Clear / Refresh Sheet</span>
-          </button>
-
-          {/* Add Technician Button */}
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold rounded-xl shadow-md transition-all hover:scale-[1.02]"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>+ Add Another Technician</span>
           </button>
 
           {/* Static Mode Badge */}
@@ -486,14 +465,6 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
             >
               <FileUp className="w-4 h-4" />
               <span>Upload New KMZ / KML File</span>
-            </button>
-
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl transition-all"
-            >
-              <UserPlus className="w-4 h-4 text-amber-400" />
-              <span>+ Add Technician Sheet</span>
             </button>
 
             {onOpenUserManual && (
@@ -1065,21 +1036,21 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
       {reportsList.length > 0 && (
         <div className="print:hidden max-w-6xl mx-auto border-2 border-dashed border-amber-300 bg-gradient-to-r from-amber-50 via-white to-amber-50 rounded-2xl p-6 text-center space-y-3 shadow-sm">
           <div className="w-12 h-12 bg-amber-500 text-slate-950 rounded-2xl flex items-center justify-center mx-auto shadow-md">
-            <UserPlus className="w-6 h-6" />
+            <Layers className="w-6 h-6" />
           </div>
           <div>
             <h3 className="font-bold text-slate-900 text-base">Manage Technician Sheet Reports</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Upload or stage a KMZ/KML file for an additional technician, or clear current sheets to upload new reports.
+              Upload or stage a KMZ/KML file in the Dashboard to append an additional technician report, or clear current sheets.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
             <button
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={onBackToDashboard}
               className="inline-flex items-center space-x-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all hover:scale-105"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add Another Technician Report</span>
+              <FileUp className="w-4 h-4" />
+              <span>Upload / Append in Dashboard</span>
             </button>
             <button
               onClick={() => setIsClearModalOpen(true)}
