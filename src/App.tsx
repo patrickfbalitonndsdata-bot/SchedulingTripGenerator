@@ -16,7 +16,9 @@ import {
   clearUserReportsFromFirestore,
   subscribeToUserReports,
   subscribeToGlobalSettings,
-  saveGlobalSettingsToFirestore
+  saveGlobalSettingsToFirestore,
+  attemptAutoSyncLocalDataToFirestore,
+  getFirestoreSyncState
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { TripReportData, SettingsConfig } from './types';
@@ -172,6 +174,45 @@ export default function App() {
 
     return () => {
       unsubscribe();
+    };
+  }, [currentUserProfile]);
+
+  // Automatic Background Data Synchronization Engine
+  // Periodically checks if Firestore quota limits have reset and pushes stored local data to the cloud database
+  useEffect(() => {
+    if (!currentUserProfile) return;
+
+    const userId = currentUserProfile.uid;
+
+    const runSyncCheck = async () => {
+      const res = await attemptAutoSyncLocalDataToFirestore(userId);
+      if (res.synced) {
+        console.log(`[Auto-Sync Engine] ${res.message}`);
+        // Refresh local history with synced cloud reports
+        const fsReports = await fetchUserReportsFromFirestore(userId);
+        if (fsReports && fsReports.length > 0) {
+          replaceLocalHistoryCache(fsReports, userId);
+          setHistoryReports(fsReports);
+        }
+      }
+    };
+
+    // Initial sync check on user login/mount
+    runSyncCheck();
+
+    // Trigger auto-sync when browser network reconnects online
+    const handleOnline = () => {
+      console.log('[Auto-Sync Engine] Network reconnected. Executing background synchronization...');
+      runSyncCheck();
+    };
+    window.addEventListener('online', handleOnline);
+
+    // Run periodic sync check every 3 minutes (180,000 ms)
+    const syncInterval = setInterval(runSyncCheck, 180000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      clearInterval(syncInterval);
     };
   }, [currentUserProfile]);
 
