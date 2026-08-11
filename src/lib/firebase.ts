@@ -26,7 +26,8 @@ import {
 } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 import { SettingsConfig } from '../types';
-import { INITIAL_SETTINGS } from '../utils/defaultSettings';
+import { INITIAL_SETTINGS, getStoredSettings } from '../utils/defaultSettings';
+import { getStoredHistoryReports, replaceLocalHistoryCache } from '../utils/historyStorage';
 
 const firebaseConfig = {
   apiKey: firebaseConfigData.apiKey,
@@ -65,6 +66,90 @@ export interface UserProfile {
 
 // Simple hash helper for fallback authentication
 let isFirestoreQuotaExceeded = false;
+let lastAutoSyncTimestamp: string | null = null;
+let isSyncingInProgress = false;
+
+export function getFirestoreSyncState(): {
+  isQuotaExceeded: boolean;
+  lastSyncTime: string | null;
+  isSyncing: boolean;
+} {
+  return {
+    isQuotaExceeded: isFirestoreQuotaExceeded,
+    lastSyncTime: lastAutoSyncTimestamp,
+    isSyncing: isSyncingInProgress
+  };
+}
+
+export async function attemptAutoSyncLocalDataToFirestore(userId?: string): Promise<{
+  synced: boolean;
+  message: string;
+}> {
+  if (isSyncingInProgress) {
+    return { synced: false, message: 'Sync operation already in progress' };
+  }
+
+  isSyncingInProgress = true;
+
+  try {
+    // Check if network is online
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      isSyncingInProgress = false;
+      return { synced: false, message: 'Offline mode active (no internet connection).' };
+    }
+
+    // If quota was previously exceeded, test if Firestore write quota has reset
+    if (isFirestoreQuotaExceeded) {
+      try {
+        const testRef = doc(db, 'app_settings', 'global');
+        await getDoc(testRef);
+        // If fetch succeeded without error, reset quota flag to allow cloud writes
+        isFirestoreQuotaExceeded = false;
+        console.log('✅ Firestore daily quota limit has reset or recovered. Re-enabling cloud database synchronization.');
+      } catch (testErr) {
+        if (checkAndHandleQuotaError(testErr)) {
+          isSyncingInProgress = false;
+          return { synced: false, message: 'Firestore daily write quota is still exceeded. Using local browser storage.' };
+        }
+      }
+    }
+
+    if (isFirestoreQuotaExceeded) {
+      isSyncingInProgress = false;
+      return { synced: false, message: 'Firestore daily write quota is currently exceeded.' };
+    }
+
+    // 1. Auto-sync global settings from local storage to Firestore
+    const localSettings = getStoredSettings();
+    if (localSettings) {
+      await saveGlobalSettingsToFirestore(localSettings);
+    }
+
+    // 2. Auto-sync local trip reports for user to Firestore
+    if (userId) {
+      const localReports = getStoredHistoryReports(userId);
+      if (localReports.length > 0) {
+        for (const rep of localReports) {
+          await saveUserReportToFirestore(userId, rep);
+        }
+      }
+
+      // Refresh and update local storage cache with latest cloud data
+      const fsReports = await fetchUserReportsFromFirestore(userId);
+      if (fsReports && fsReports.length > 0) {
+        replaceLocalHistoryCache(fsReports, userId);
+      }
+    }
+
+    lastAutoSyncTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    isSyncingInProgress = false;
+    return { synced: true, message: `Auto-synced local data with cloud database at ${lastAutoSyncTimestamp}` };
+  } catch (err) {
+    checkAndHandleQuotaError(err);
+    isSyncingInProgress = false;
+    return { synced: false, message: 'Auto-sync notice: using local storage backup.' };
+  }
+}
 
 export function checkAndHandleQuotaError(err: any): boolean {
   if (!err) return false;
