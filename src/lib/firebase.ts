@@ -64,6 +64,29 @@ export interface UserProfile {
 }
 
 // Simple hash helper for fallback authentication
+let isFirestoreQuotaExceeded = false;
+
+export function checkAndHandleQuotaError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || String(err)).toLowerCase();
+  const code = (err.code || '').toLowerCase();
+  if (
+    code === 'resource-exhausted' ||
+    msg.includes('quota limit exceeded') ||
+    msg.includes('resource-exhausted') ||
+    msg.includes('quota exceeded')
+  ) {
+    if (!isFirestoreQuotaExceeded) {
+      isFirestoreQuotaExceeded = true;
+      console.warn(
+        '⚠️ Firestore daily quota limit reached. Application has switched to local browser storage fallback.'
+      );
+    }
+    return true;
+  }
+  return false;
+}
+
 function hashPassword(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -751,7 +774,7 @@ export interface UserTripReportDoc {
 
 // Fetch all trip reports belonging strictly to a specific user UID (auto-deletes records older than 10 days)
 export async function fetchUserReportsFromFirestore(userId: string): Promise<any[]> {
-  if (!userId) return [];
+  if (!userId || isFirestoreQuotaExceeded) return [];
   try {
     const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
     const now = Date.now();
@@ -773,8 +796,10 @@ export async function fetchUserReportsFromFirestore(userId: string): Promise<any
 
         const age = now - recordTime;
         if (age > TEN_DAYS_MS) {
-          // Automatically delete stored reports older than 10 days from database
-          deleteDoc(docSnap.ref).catch((err) => console.warn('Firestore expired report auto-delete notice:', err));
+          // Automatically delete stored reports older than 10 days from database if not quota exceeded
+          if (!isFirestoreQuotaExceeded) {
+            deleteDoc(docSnap.ref).catch((err) => checkAndHandleQuotaError(err));
+          }
         } else {
           reports.push(data.report);
         }
@@ -782,14 +807,15 @@ export async function fetchUserReportsFromFirestore(userId: string): Promise<any
     }
     return reports;
   } catch (error) {
-    console.error('Error fetching user trip reports from Firestore:', error);
+    checkAndHandleQuotaError(error);
+    console.warn('Notice: Error or quota limit fetching user trip reports from Firestore.');
     return [];
   }
 }
 
 // Save or update a trip report for a specific user UID in Firestore
 export async function saveUserReportToFirestore(userId: string, report: any): Promise<void> {
-  if (!userId || !report) return;
+  if (!userId || !report || isFirestoreQuotaExceeded) return;
   try {
     const reportId = report.id || `rep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const safeReportId = reportId.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -807,26 +833,28 @@ export async function saveUserReportToFirestore(userId: string, report: any): Pr
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (error) {
-    console.error('Error saving user report to Firestore:', error);
+    checkAndHandleQuotaError(error);
+    console.warn('Notice: Error or quota limit saving user report to Firestore. Report saved in local browser storage.');
   }
 }
 
 // Delete a single trip report for a specific user UID in Firestore
 export async function deleteUserReportFromFirestore(userId: string, reportId: string): Promise<void> {
-  if (!userId || !reportId) return;
+  if (!userId || !reportId || isFirestoreQuotaExceeded) return;
   try {
     const safeReportId = reportId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const docId = `${userId}_${safeReportId}`;
     const docRef = doc(db, 'trip_reports', docId);
     await deleteDoc(docRef);
   } catch (error) {
-    console.error('Error deleting user report from Firestore:', error);
+    checkAndHandleQuotaError(error);
+    console.warn('Notice: Error or quota limit deleting user report from Firestore.');
   }
 }
 
 // Clear all trip reports for a specific user UID in Firestore
 export async function clearUserReportsFromFirestore(userId: string): Promise<void> {
-  if (!userId) return;
+  if (!userId || isFirestoreQuotaExceeded) return;
   try {
     const colRef = collection(db, 'trip_reports');
     const q = query(colRef, where('userId', '==', userId));
@@ -834,7 +862,8 @@ export async function clearUserReportsFromFirestore(userId: string): Promise<voi
     const deletePromises = snap.docs.map(d => deleteDoc(d.ref));
     await Promise.all(deletePromises);
   } catch (error) {
-    console.error('Error clearing user reports from Firestore:', error);
+    checkAndHandleQuotaError(error);
+    console.warn('Notice: Error or quota limit clearing user reports from Firestore.');
   }
 }
 
@@ -869,7 +898,9 @@ export function subscribeToUserReports(
           }
           const age = now - recordTime;
           if (age > TEN_DAYS_MS) {
-            deleteDoc(docSnap.ref).catch((e) => console.warn('Expired report clean:', e));
+            if (!isFirestoreQuotaExceeded) {
+              deleteDoc(docSnap.ref).catch((e) => checkAndHandleQuotaError(e));
+            }
           } else {
             reports.push(data.report);
           }
@@ -878,7 +909,8 @@ export function subscribeToUserReports(
       onData(reports);
     },
     (error) => {
-      console.error('Firestore snapshot listener error:', error);
+      checkAndHandleQuotaError(error);
+      console.warn('Notice: Firestore user reports listener offline or quota limit hit. Using local browser storage history.');
       if (onError) onError(error);
     }
   );
@@ -888,6 +920,7 @@ export function subscribeToUserReports(
 
 // Global App Settings Database Persistence (Technician roster, vehicle plates, regions, etc.)
 export async function fetchGlobalSettingsFromFirestore(): Promise<SettingsConfig | null> {
+  if (isFirestoreQuotaExceeded) return null;
   try {
     const docRef = doc(db, 'app_settings', 'global');
     const snap = await getDoc(docRef);
@@ -895,12 +928,14 @@ export async function fetchGlobalSettingsFromFirestore(): Promise<SettingsConfig
       return snap.data() as SettingsConfig;
     }
   } catch (err) {
-    console.error('Error fetching global app settings from Firestore:', err);
+    checkAndHandleQuotaError(err);
+    console.warn('Notice: Error or quota limit fetching global app settings from Firestore.');
   }
   return null;
 }
 
 export async function saveGlobalSettingsToFirestore(settings: SettingsConfig): Promise<void> {
+  if (isFirestoreQuotaExceeded) return;
   try {
     const docRef = doc(db, 'app_settings', 'global');
     const cleaned = JSON.parse(JSON.stringify(settings));
@@ -909,7 +944,8 @@ export async function saveGlobalSettingsToFirestore(settings: SettingsConfig): P
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (err) {
-    console.error('Error saving global app settings to Firestore:', err);
+    checkAndHandleQuotaError(err);
+    console.warn('Notice: Error or quota limit saving global app settings to Firestore.');
   }
 }
 
@@ -926,13 +962,17 @@ export function subscribeToGlobalSettings(
           onData(data);
         }
       } else {
-        // Initialize global settings in Firestore database if not present yet
-        saveGlobalSettingsToFirestore(INITIAL_SETTINGS);
+        // Initialize global settings in Firestore database if not present yet and quota allowed
+        if (!isFirestoreQuotaExceeded) {
+          saveGlobalSettingsToFirestore(INITIAL_SETTINGS);
+        }
         onData(INITIAL_SETTINGS);
       }
     },
     (err) => {
-      console.error('Error in global settings Firestore listener:', err);
+      checkAndHandleQuotaError(err);
+      console.warn('Notice: Firestore settings listener offline or quota limit hit. Using local settings fallback.');
+      onData(INITIAL_SETTINGS);
     }
   );
   return unsubscribe;
