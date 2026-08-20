@@ -22,7 +22,10 @@ import {
   query, 
   where,
   orderBy,
-  serverTimestamp 
+  serverTimestamp,
+  disableNetwork,
+  enableNetwork,
+  setLogLevel
 } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 import { SettingsConfig } from '../types';
@@ -49,6 +52,47 @@ export const db: Firestore = firebaseConfigData.firestoreDatabaseId && firebaseC
   ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
   : getFirestore(app);
 
+// Suppress Firestore verbose debug logs & resource-exhausted warning logs
+try {
+  setLogLevel('silent');
+} catch (_) {
+  try { setLogLevel('error'); } catch (__) {}
+}
+
+// Global console filter to prevent harmless Firestore quota / backoff warnings from flooding the dev console
+if (typeof window !== 'undefined') {
+  const originalConsoleError = console.error;
+  const originalConsoleWarn = console.warn;
+
+  console.error = function (...args: any[]) {
+    const message = args.map(a => (typeof a === 'string' ? a : (a?.message || JSON.stringify(a) || ''))).join(' ');
+    if (
+      message.includes('resource-exhausted') ||
+      message.includes('Quota limit exceeded') ||
+      message.includes('Using maximum backoff delay') ||
+      message.includes('quota exceeded')
+    ) {
+      // Handled silently by app's offline fallback engine
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
+
+  console.warn = function (...args: any[]) {
+    const message = args.map(a => (typeof a === 'string' ? a : (a?.message || JSON.stringify(a) || ''))).join(' ');
+    if (
+      message.includes('resource-exhausted') ||
+      message.includes('Quota limit exceeded') ||
+      message.includes('Using maximum backoff delay') ||
+      message.includes('quota exceeded')
+    ) {
+      // Handled silently by app's offline fallback engine
+      return;
+    }
+    originalConsoleWarn.apply(console, args);
+  };
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -65,7 +109,35 @@ export interface UserProfile {
 }
 
 // Simple hash helper for fallback authentication
-let isFirestoreQuotaExceeded = false;
+const QUOTA_EXCEEDED_KEY = 'firestore_quota_exceeded_timestamp';
+
+let isFirestoreQuotaExceeded = (() => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem(QUOTA_EXCEEDED_KEY);
+      if (stored) {
+        const ts = parseInt(stored, 10);
+        // If quota error occurred less than 12 hours ago, stay in offline fallback mode
+        if (Date.now() - ts < 12 * 60 * 60 * 1000) {
+          return true;
+        } else {
+          localStorage.removeItem(QUOTA_EXCEEDED_KEY);
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore localStorage access errors
+  }
+  return false;
+})();
+
+// If quota is already known to be exceeded, disable Firestore network connection immediately
+if (isFirestoreQuotaExceeded) {
+  try {
+    disableNetwork(db).catch(() => {});
+  } catch (_) {}
+}
+
 let lastAutoSyncTimestamp: string | null = null;
 let isSyncingInProgress = false;
 
@@ -81,12 +153,17 @@ export function getFirestoreSyncState(): {
   };
 }
 
-export async function attemptAutoSyncLocalDataToFirestore(userId?: string): Promise<{
+export async function attemptAutoSyncLocalDataToFirestore(userId?: string, forceCheckQuota: boolean = false): Promise<{
   synced: boolean;
   message: string;
 }> {
   if (isSyncingInProgress) {
     return { synced: false, message: 'Sync operation already in progress' };
+  }
+
+  // If quota is known to be exceeded and forceCheckQuota is false, bypass network calls completely
+  if (isFirestoreQuotaExceeded && !forceCheckQuota) {
+    return { synced: false, message: 'Firestore daily write quota is currently exceeded. Operating in local storage mode.' };
   }
 
   isSyncingInProgress = true;
@@ -98,16 +175,19 @@ export async function attemptAutoSyncLocalDataToFirestore(userId?: string): Prom
       return { synced: false, message: 'Offline mode active (no internet connection).' };
     }
 
-    // If quota was previously exceeded, test if Firestore write quota has reset
-    if (isFirestoreQuotaExceeded) {
+    // If quota was previously exceeded and explicit force check was requested, test if quota has reset
+    if (isFirestoreQuotaExceeded && forceCheckQuota) {
       try {
+        await enableNetwork(db);
         const testRef = doc(db, 'app_settings', 'global');
         await getDoc(testRef);
         // If fetch succeeded without error, reset quota flag to allow cloud writes
         isFirestoreQuotaExceeded = false;
-        console.log('✅ Firestore daily quota limit has reset or recovered. Re-enabling cloud database synchronization.');
+        try { localStorage.removeItem(QUOTA_EXCEEDED_KEY); } catch (_) {}
+        console.log('✅ Firestore daily quota limit has recovered. Re-enabling cloud database synchronization.');
       } catch (testErr) {
         if (checkAndHandleQuotaError(testErr)) {
+          try { disableNetwork(db).catch(() => {}); } catch (_) {}
           isSyncingInProgress = false;
           return { synced: false, message: 'Firestore daily write quota is still exceeded. Using local browser storage.' };
         }
@@ -115,6 +195,7 @@ export async function attemptAutoSyncLocalDataToFirestore(userId?: string): Prom
     }
 
     if (isFirestoreQuotaExceeded) {
+      try { disableNetwork(db).catch(() => {}); } catch (_) {}
       isSyncingInProgress = false;
       return { synced: false, message: 'Firestore daily write quota is currently exceeded.' };
     }
@@ -163,6 +244,14 @@ export function checkAndHandleQuotaError(err: any): boolean {
   ) {
     if (!isFirestoreQuotaExceeded) {
       isFirestoreQuotaExceeded = true;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(QUOTA_EXCEEDED_KEY, String(Date.now()));
+        }
+      } catch (_) {}
+      try {
+        disableNetwork(db).catch(() => {});
+      } catch (_) {}
       console.warn(
         '⚠️ Firestore daily quota limit reached. Application has switched to local browser storage fallback.'
       );
@@ -213,6 +302,9 @@ export function isSuperAdmin(profile?: UserProfile | null): boolean {
 
 // Fetch user profile from Firestore
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  if (isFirestoreQuotaExceeded) {
+    return getStoredLocalSession();
+  }
   try {
     const userDocRef = doc(db, 'users', uid);
     const snap = await getDoc(userDocRef);
@@ -229,13 +321,15 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     }
     return null;
   } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
+    checkAndHandleQuotaError(error);
+    return getStoredLocalSession();
   }
 }
 
 // Create or update user profile in Firestore
 export async function setUserProfile(profile: UserProfile): Promise<void> {
+  saveLocalSession(profile);
+  if (isFirestoreQuotaExceeded) return;
   try {
     const userDocRef = doc(db, 'users', profile.uid);
     const cleanedProfile = JSON.parse(JSON.stringify(profile));
@@ -244,8 +338,7 @@ export async function setUserProfile(profile: UserProfile): Promise<void> {
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (error) {
-    console.error('Error setting user profile:', error);
-    throw error;
+    checkAndHandleQuotaError(error);
   }
 }
 
@@ -261,46 +354,107 @@ export async function updateUserProfileFields(
     newPassword?: string;
   }
 ): Promise<UserProfile> {
-  const userDocRef = doc(db, 'users', uid);
-  const snap = await getDoc(userDocRef);
-  
-  const currentData = snap.exists() ? (snap.data() as UserProfile) : null;
-  if (!currentData) {
-    throw new Error('User profile record not found in database.');
-  }
+  const localCurrent = getStoredLocalSession();
 
-  const cleanUsername = updates.username !== undefined ? updates.username.trim() : (currentData.username || '');
-  const cleanUsernameLower = cleanUsername.toLowerCase();
-
-  // Check username uniqueness if modified and non-empty
-  if (cleanUsernameLower && cleanUsernameLower !== (currentData.usernameLower || currentData.username?.toLowerCase() || '')) {
-    const usersCol = collection(db, 'users');
-    const qUser = query(usersCol, where('usernameLower', '==', cleanUsernameLower));
-    const snapUser = await getDocs(qUser);
-    if (!snapUser.empty && snapUser.docs.some(d => d.id !== uid)) {
-      throw new Error('This username is already taken by another account. Please choose a different username.');
+  if (isFirestoreQuotaExceeded) {
+    const cleanUsername = updates.username !== undefined ? updates.username.trim() : (localCurrent?.username || '');
+    const cleanUsernameLower = cleanUsername.toLowerCase();
+    const updatedProfile: UserProfile = {
+      ...(localCurrent || {
+        uid,
+        email: updates.email || 'user@example.com',
+        displayName: updates.displayName || 'User',
+        role: 'user',
+        status: 'active'
+      }),
+      displayName: updates.displayName !== undefined ? updates.displayName.trim() : (localCurrent?.displayName || 'User'),
+      username: cleanUsername,
+      usernameLower: cleanUsernameLower,
+      email: updates.email !== undefined ? updates.email.trim().toLowerCase() : (localCurrent?.email || ''),
+      assignedRegion: updates.assignedRegion !== undefined ? updates.assignedRegion : (localCurrent?.assignedRegion || 'South Central'),
+      avatarId: updates.avatarId !== undefined ? updates.avatarId : (localCurrent?.avatarId || 'panda'),
+      updatedAt: new Date().toISOString()
+    };
+    if (updates.newPassword && updates.newPassword.trim()) {
+      updatedProfile.passwordHash = hashPassword(updates.newPassword.trim());
     }
+    saveLocalSession(updatedProfile);
+    return updatedProfile;
   }
 
-  const updatedProfile: UserProfile = {
-    ...currentData,
-    displayName: updates.displayName !== undefined ? updates.displayName.trim() : currentData.displayName,
-    username: cleanUsername,
-    usernameLower: cleanUsernameLower,
-    email: updates.email !== undefined ? updates.email.trim().toLowerCase() : currentData.email,
-    assignedRegion: updates.assignedRegion !== undefined ? updates.assignedRegion : (currentData.assignedRegion || 'South Central'),
-    avatarId: updates.avatarId !== undefined ? updates.avatarId : (currentData.avatarId || 'panda'),
-    updatedAt: new Date().toISOString()
-  };
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    const snap = await getDoc(userDocRef);
+    
+    const currentData = snap.exists() ? (snap.data() as UserProfile) : localCurrent;
+    if (!currentData) {
+      throw new Error('User profile record not found in database.');
+    }
 
-  if (updates.newPassword && updates.newPassword.trim()) {
-    updatedProfile.passwordHash = hashPassword(updates.newPassword.trim());
+    const cleanUsername = updates.username !== undefined ? updates.username.trim() : (currentData.username || '');
+    const cleanUsernameLower = cleanUsername.toLowerCase();
+
+    // Check username uniqueness if modified and non-empty
+    if (cleanUsernameLower && cleanUsernameLower !== (currentData.usernameLower || currentData.username?.toLowerCase() || '')) {
+      try {
+        const usersCol = collection(db, 'users');
+        const qUser = query(usersCol, where('usernameLower', '==', cleanUsernameLower));
+        const snapUser = await getDocs(qUser);
+        if (!snapUser.empty && snapUser.docs.some(d => d.id !== uid)) {
+          throw new Error('This username is already taken by another account. Please choose a different username.');
+        }
+      } catch (checkErr: any) {
+        if (checkErr.message?.includes('already taken')) throw checkErr;
+        checkAndHandleQuotaError(checkErr);
+      }
+    }
+
+    const updatedProfile: UserProfile = {
+      ...currentData,
+      displayName: updates.displayName !== undefined ? updates.displayName.trim() : currentData.displayName,
+      username: cleanUsername,
+      usernameLower: cleanUsernameLower,
+      email: updates.email !== undefined ? updates.email.trim().toLowerCase() : currentData.email,
+      assignedRegion: updates.assignedRegion !== undefined ? updates.assignedRegion : (currentData.assignedRegion || 'South Central'),
+      avatarId: updates.avatarId !== undefined ? updates.avatarId : (currentData.avatarId || 'panda'),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (updates.newPassword && updates.newPassword.trim()) {
+      updatedProfile.passwordHash = hashPassword(updates.newPassword.trim());
+    }
+
+    const cleanedUpdatedProfile = JSON.parse(JSON.stringify(updatedProfile));
+    await setDoc(userDocRef, cleanedUpdatedProfile, { merge: true });
+    saveLocalSession(cleanedUpdatedProfile);
+    return cleanedUpdatedProfile;
+  } catch (error: any) {
+    checkAndHandleQuotaError(error);
+    if (error.message?.includes('already taken')) {
+      throw error;
+    }
+    // If database write failed, fallback to saving in local session
+    if (localCurrent) {
+      const cleanUsername = updates.username !== undefined ? updates.username.trim() : (localCurrent.username || '');
+      const cleanUsernameLower = cleanUsername.toLowerCase();
+      const updatedProfile: UserProfile = {
+        ...localCurrent,
+        displayName: updates.displayName !== undefined ? updates.displayName.trim() : localCurrent.displayName,
+        username: cleanUsername,
+        usernameLower: cleanUsernameLower,
+        email: updates.email !== undefined ? updates.email.trim().toLowerCase() : localCurrent.email,
+        assignedRegion: updates.assignedRegion !== undefined ? updates.assignedRegion : (localCurrent.assignedRegion || 'South Central'),
+        avatarId: updates.avatarId !== undefined ? updates.avatarId : (localCurrent.avatarId || 'panda'),
+        updatedAt: new Date().toISOString()
+      };
+      if (updates.newPassword && updates.newPassword.trim()) {
+        updatedProfile.passwordHash = hashPassword(updates.newPassword.trim());
+      }
+      saveLocalSession(updatedProfile);
+      return updatedProfile;
+    }
+    throw error;
   }
-
-  const cleanedUpdatedProfile = JSON.parse(JSON.stringify(updatedProfile));
-  await setDoc(userDocRef, cleanedUpdatedProfile, { merge: true });
-  saveLocalSession(cleanedUpdatedProfile);
-  return cleanedUpdatedProfile;
 }
 
 // Register user with Firebase Auth or Firestore fallback
@@ -438,6 +592,35 @@ export interface EmailVerificationRecord {
   expiresAt: number;
 }
 
+// Local verification codes memory/localStorage cache fallback for offline or quota exceeded modes
+const LOCAL_VERIFICATION_PREFIX = 'email_verification_code_';
+
+function saveLocalVerificationCode(email: string, code: string, expiresAt: number) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`${LOCAL_VERIFICATION_PREFIX}${email}`, JSON.stringify({ code, expiresAt }));
+    }
+  } catch (_) {}
+}
+
+function getLocalVerificationCode(email: string): { code: string; expiresAt: number } | null {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const val = localStorage.getItem(`${LOCAL_VERIFICATION_PREFIX}${email}`);
+      if (val) return JSON.parse(val);
+    }
+  } catch (_) {}
+  return null;
+}
+
+function removeLocalVerificationCode(email: string) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(`${LOCAL_VERIFICATION_PREFIX}${email}`);
+    }
+  } catch (_) {}
+}
+
 // Request Email Verification Code for Profile Email Update
 export async function requestEmailUpdateVerificationCode(
   newEmail: string,
@@ -449,39 +632,43 @@ export async function requestEmailUpdateVerificationCode(
     throw new Error('Please enter a valid email address.');
   }
 
-  const usersCol = collection(db, 'users');
-
-  // Check if email already registered by another user in Firestore
-  try {
-    const snapEmail = await getDocs(query(usersCol, where('email', '==', cleanEmail)));
-    if (!snapEmail.empty) {
-      const existingUser = snapEmail.docs[0];
-      if (existingUser.id !== currentUid) {
-        throw new Error('An account with this email address is already registered to another user.');
+  if (!isFirestoreQuotaExceeded) {
+    const usersCol = collection(db, 'users');
+    // Check if email already registered by another user in Firestore
+    try {
+      const snapEmail = await getDocs(query(usersCol, where('email', '==', cleanEmail)));
+      if (!snapEmail.empty) {
+        const existingUser = snapEmail.docs[0];
+        if (existingUser.id !== currentUid) {
+          throw new Error('An account with this email address is already registered to another user.');
+        }
       }
+    } catch (err: any) {
+      if (err.message && err.message.includes('already registered')) {
+        throw err;
+      }
+      checkAndHandleQuotaError(err);
     }
-  } catch (err: any) {
-    if (err.message && err.message.includes('already registered')) {
-      throw err;
-    }
-    console.warn('Note: Email uniqueness check notice:', err);
   }
 
   // Generate 6-digit numeric authentication code
   const code = Math.floor(100000 + Math.floor(Math.random() * 900000)).toString();
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
-  const verificationRef = doc(db, 'emailVerifications', cleanEmail);
-  try {
-    await setDoc(verificationRef, {
-      email: cleanEmail,
-      code,
-      createdAt: new Date().toISOString(),
-      expiresAt
-    });
-  } catch (err: any) {
-    console.error('Error writing email verification code:', err);
-    throw new Error('Database permission error writing verification code. Please try again.');
+  saveLocalVerificationCode(cleanEmail, code, expiresAt);
+
+  if (!isFirestoreQuotaExceeded) {
+    const verificationRef = doc(db, 'emailVerifications', cleanEmail);
+    try {
+      await setDoc(verificationRef, {
+        email: cleanEmail,
+        code,
+        createdAt: new Date().toISOString(),
+        expiresAt
+      });
+    } catch (err: any) {
+      checkAndHandleQuotaError(err);
+    }
   }
 
   return { code, expiresAt, email: cleanEmail };
@@ -499,33 +686,34 @@ export async function requestRegistrationVerificationCode(
     throw new Error('Please enter a valid email address.');
   }
 
-  const usersCol = collection(db, 'users');
-
-  // Check if email already registered in Firestore users
-  try {
-    const snapEmail = await getDocs(query(usersCol, where('email', '==', cleanEmail)));
-    if (!snapEmail.empty) {
-      throw new Error('An account with this email address is already registered. Please log in instead.');
-    }
-  } catch (err: any) {
-    if (err.message && err.message.includes('already registered')) {
-      throw err;
-    }
-    console.warn('Note: Email uniqueness query notice:', err);
-  }
-
-  // Check if username already taken in Firestore users
-  if (cleanUsername) {
+  if (!isFirestoreQuotaExceeded) {
+    const usersCol = collection(db, 'users');
+    // Check if email already registered in Firestore users
     try {
-      const snapUsername = await getDocs(query(usersCol, where('usernameLower', '==', cleanUsername)));
-      if (!snapUsername.empty) {
-        throw new Error('This username is already taken. Please choose a different username.');
+      const snapEmail = await getDocs(query(usersCol, where('email', '==', cleanEmail)));
+      if (!snapEmail.empty) {
+        throw new Error('An account with this email address is already registered. Please log in instead.');
       }
     } catch (err: any) {
-      if (err.message && err.message.includes('already taken')) {
+      if (err.message && err.message.includes('already registered')) {
         throw err;
       }
-      console.warn('Note: Username uniqueness query notice:', err);
+      checkAndHandleQuotaError(err);
+    }
+
+    // Check if username already taken in Firestore users
+    if (cleanUsername) {
+      try {
+        const snapUsername = await getDocs(query(usersCol, where('usernameLower', '==', cleanUsername)));
+        if (!snapUsername.empty) {
+          throw new Error('This username is already taken. Please choose a different username.');
+        }
+      } catch (err: any) {
+        if (err.message && err.message.includes('already taken')) {
+          throw err;
+        }
+        checkAndHandleQuotaError(err);
+      }
     }
   }
 
@@ -533,17 +721,20 @@ export async function requestRegistrationVerificationCode(
   const code = Math.floor(100000 + Math.floor(Math.random() * 900000)).toString();
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
-  const verificationRef = doc(db, 'emailVerifications', cleanEmail);
-  try {
-    await setDoc(verificationRef, {
-      email: cleanEmail,
-      code,
-      createdAt: new Date().toISOString(),
-      expiresAt
-    });
-  } catch (err: any) {
-    console.error('Error writing email verification code:', err);
-    throw new Error('Database permission error generating verification code. Please try again.');
+  saveLocalVerificationCode(cleanEmail, code, expiresAt);
+
+  if (!isFirestoreQuotaExceeded) {
+    const verificationRef = doc(db, 'emailVerifications', cleanEmail);
+    try {
+      await setDoc(verificationRef, {
+        email: cleanEmail,
+        code,
+        createdAt: new Date().toISOString(),
+        expiresAt
+      });
+    } catch (err: any) {
+      checkAndHandleQuotaError(err);
+    }
   }
 
   return { code, expiresAt, email: cleanEmail };
@@ -561,31 +752,68 @@ export async function verifyEmailCode(
     throw new Error('Please enter the 6-digit authentication verification code.');
   }
 
-  const verificationRef = doc(db, 'emailVerifications', cleanEmail);
-  const snap = await getDoc(verificationRef);
+  // Check local storage record first
+  const localRecord = getLocalVerificationCode(cleanEmail);
+  if (localRecord) {
+    if (Date.now() > localRecord.expiresAt) {
+      removeLocalVerificationCode(cleanEmail);
+      throw new Error('The authentication code has expired. Please click "Resend Code" to get a new code.');
+    }
+    if (localRecord.code === cleanCode) {
+      removeLocalVerificationCode(cleanEmail);
+      if (!isFirestoreQuotaExceeded) {
+        try {
+          const verificationRef = doc(db, 'emailVerifications', cleanEmail);
+          await deleteDoc(verificationRef);
+        } catch (_) {}
+      }
+      return true;
+    }
+  }
 
-  if (!snap.exists()) {
+  if (isFirestoreQuotaExceeded) {
+    if (localRecord && localRecord.code !== cleanCode) {
+      throw new Error('Invalid authentication code. Please check the code and try again.');
+    }
     throw new Error('No active verification code found for this email. Please click "Resend Code".');
   }
 
-  const data = snap.data() as EmailVerificationRecord;
-
-  if (Date.now() > data.expiresAt) {
-    throw new Error('The authentication code has expired. Please click "Resend Code" to get a new code.');
-  }
-
-  if (data.code !== cleanCode) {
-    throw new Error('Invalid authentication code. Please check the code and try again.');
-  }
-
-  // Clean up verification record after successful verification
   try {
-    await deleteDoc(verificationRef);
-  } catch (err) {
-    console.warn('Notice: verification record cleanup:', err);
-  }
+    const verificationRef = doc(db, 'emailVerifications', cleanEmail);
+    const snap = await getDoc(verificationRef);
 
-  return true;
+    if (!snap.exists()) {
+      throw new Error('No active verification code found for this email. Please click "Resend Code".');
+    }
+
+    const data = snap.data() as EmailVerificationRecord;
+
+    if (Date.now() > data.expiresAt) {
+      throw new Error('The authentication code has expired. Please click "Resend Code" to get a new code.');
+    }
+
+    if (data.code !== cleanCode) {
+      throw new Error('Invalid authentication code. Please check the code and try again.');
+    }
+
+    // Clean up verification record after successful verification
+    try {
+      await deleteDoc(verificationRef);
+    } catch (_) {}
+
+    return true;
+  } catch (err: any) {
+    checkAndHandleQuotaError(err);
+    if (err.message && (err.message.includes('Invalid') || err.message.includes('expired') || err.message.includes('No active'))) {
+      throw err;
+    }
+    // If quota error occurred during getDoc, check local record
+    if (localRecord && localRecord.code === cleanCode) {
+      removeLocalVerificationCode(cleanEmail);
+      return true;
+    }
+    throw new Error('Could not verify code. Please click "Resend Code" to receive a new one.');
+  }
 }
 
 // Login user with Firebase Auth or Firestore fallback (accepts email OR username)
@@ -962,11 +1190,19 @@ export function subscribeToUserReports(
     onData([]);
     return () => {};
   }
+
+  if (isFirestoreQuotaExceeded) {
+    onData(getStoredHistoryReports(userId));
+    return () => {};
+  }
+
   const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
   const colRef = collection(db, 'trip_reports');
   const q = query(colRef, where('userId', '==', userId));
 
-  const unsubscribe = onSnapshot(
+  let unsubscribe: (() => void) | undefined;
+
+  unsubscribe = onSnapshot(
     q,
     (snap) => {
       const now = Date.now();
@@ -994,13 +1230,21 @@ export function subscribeToUserReports(
       onData(reports);
     },
     (error) => {
-      checkAndHandleQuotaError(error);
+      const isQuota = checkAndHandleQuotaError(error);
+      if (isQuota && unsubscribe) {
+        try { unsubscribe(); } catch (_) {}
+      }
       console.warn('Notice: Firestore user reports listener offline or quota limit hit. Using local browser storage history.');
+      onData(getStoredHistoryReports(userId));
       if (onError) onError(error);
     }
   );
 
-  return unsubscribe;
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (_) {}
+    }
+  };
 }
 
 // Global App Settings Database Persistence (Technician roster, vehicle plates, regions, etc.)
@@ -1037,8 +1281,16 @@ export async function saveGlobalSettingsToFirestore(settings: SettingsConfig): P
 export function subscribeToGlobalSettings(
   onData: (settings: SettingsConfig) => void
 ): () => void {
+  if (isFirestoreQuotaExceeded) {
+    const localSettings = getStoredSettings();
+    onData(localSettings || INITIAL_SETTINGS);
+    return () => {};
+  }
+
   const docRef = doc(db, 'app_settings', 'global');
-  const unsubscribe = onSnapshot(
+  let unsubscribe: (() => void) | undefined;
+
+  unsubscribe = onSnapshot(
     docRef,
     (snap) => {
       if (snap.exists()) {
@@ -1055,12 +1307,21 @@ export function subscribeToGlobalSettings(
       }
     },
     (err) => {
-      checkAndHandleQuotaError(err);
+      const isQuota = checkAndHandleQuotaError(err);
+      if (isQuota && unsubscribe) {
+        try { unsubscribe(); } catch (_) {}
+      }
       console.warn('Notice: Firestore settings listener offline or quota limit hit. Using local settings fallback.');
-      onData(INITIAL_SETTINGS);
+      const localSettings = getStoredSettings();
+      onData(localSettings || INITIAL_SETTINGS);
     }
   );
-  return unsubscribe;
+
+  return () => {
+    if (unsubscribe) {
+      try { unsubscribe(); } catch (_) {}
+    }
+  };
 }
 
 export { firebaseSignOut };
