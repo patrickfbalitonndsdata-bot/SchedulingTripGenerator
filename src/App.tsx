@@ -289,13 +289,19 @@ export default function App() {
     }
 
     const userId = currentUserProfile?.uid;
+    // Always persist to local browser storage first for immediate offline & quota resilience
+    saveReportToHistory(newReport, userId);
+
     if (userId) {
       await saveUserReportToFirestore(userId, newReport);
       const fsReports = await fetchUserReportsFromFirestore(userId);
-      replaceLocalHistoryCache(fsReports, userId);
-      setHistoryReports(fsReports);
+      if (fsReports && fsReports.length > 0) {
+        replaceLocalHistoryCache(fsReports, userId);
+        setHistoryReports(fsReports);
+      } else {
+        setHistoryReports(getStoredHistoryReports(userId));
+      }
     } else {
-      saveReportToHistory(newReport, userId);
       setHistoryReports(getStoredHistoryReports(userId));
     }
   };
@@ -360,14 +366,19 @@ export default function App() {
     // 2. Remove prior record for specific technician & schedule date from active reportsList
     const filteredActive = reportsList.filter(r => !isSameTechnicianAndScheduleDate(r, existingReport));
 
-    // 3. Save new report to Firestore database & sync state
+    // 3. Save new report to local storage & Firestore database
+    saveReportToHistory(newReport, userId);
+
     if (userId) {
       await saveUserReportToFirestore(userId, newReport);
       const fsReports = await fetchUserReportsFromFirestore(userId);
-      replaceLocalHistoryCache(fsReports, userId);
-      setHistoryReports(fsReports);
+      if (fsReports && fsReports.length > 0) {
+        replaceLocalHistoryCache(fsReports, userId);
+        setHistoryReports(fsReports);
+      } else {
+        setHistoryReports(getStoredHistoryReports(userId));
+      }
     } else {
-      saveReportToHistory(newReport, userId);
       setHistoryReports(getStoredHistoryReports(userId));
     }
 
