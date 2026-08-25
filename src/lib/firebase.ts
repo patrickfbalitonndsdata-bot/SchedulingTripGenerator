@@ -109,7 +109,8 @@ export interface UserProfile {
 }
 
 // Simple hash helper for fallback authentication
-const QUOTA_EXCEEDED_KEY = 'firestore_quota_exceeded_timestamp';
+const currentDbKey = firebaseConfigData.firestoreDatabaseId || firebaseConfigData.projectId || 'default';
+const QUOTA_EXCEEDED_KEY = `firestore_quota_exceeded_timestamp_${currentDbKey}`;
 
 let isFirestoreQuotaExceeded = (() => {
   try {
@@ -131,8 +132,12 @@ let isFirestoreQuotaExceeded = (() => {
   return false;
 })();
 
-// If quota is already known to be exceeded, disable Firestore network connection immediately
-if (isFirestoreQuotaExceeded) {
+// If quota is not exceeded, ensure network is enabled
+if (!isFirestoreQuotaExceeded) {
+  try {
+    enableNetwork(db).catch(() => {});
+  } catch (_) {}
+} else {
   try {
     disableNetwork(db).catch(() => {});
   } catch (_) {}
