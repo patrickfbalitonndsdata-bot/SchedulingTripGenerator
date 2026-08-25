@@ -848,13 +848,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                 <span>View Encoded Form</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-              <button
-                onClick={onNavigateToMap}
-                className="flex items-center space-x-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs sm:text-sm rounded-lg border border-slate-700 transition-all cursor-pointer"
-              >
-                <Globe className="w-4 h-4 text-emerald-400" />
-                <span>SchezTripNGo App</span>
-              </button>
             </div>
           </div>
 
