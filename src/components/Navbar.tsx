@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileSpreadsheet, Globe, Settings, BookOpen, Lock, ShieldCheck, LogOut, UserCog, Sparkles, Crown } from 'lucide-react';
+import { LayoutDashboard, FileSpreadsheet, Settings, BookOpen, Lock, ShieldCheck, LogOut, UserCog, Sparkles, Crown } from 'lucide-react';
 import { UserProfile, isSuperAdmin } from '../lib/firebase';
 import { getAvatarById } from '../utils/avatars';
 
@@ -83,18 +83,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               {hasActiveReport && (
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-xs" />
               )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('map')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'map'
-                  ? 'bg-slate-800 text-amber-400 border border-slate-700/90 shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              <span>SchEZPath</span>
             </button>
 
             {/* Settings Tab - Visible for ADMIN accounts only */}
