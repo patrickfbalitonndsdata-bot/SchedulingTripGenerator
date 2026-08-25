@@ -3,7 +3,7 @@ import {
   X, BookOpen, Sparkles, User, MapPin, Calendar, Camera, 
   Sliders, FileUp, CheckCircle2, Zap, Shield, Mail, Layers, 
   FileSpreadsheet, Clock, ArrowRight, Lightbulb, Check, AlertCircle,
-  HelpCircle, Monitor, PlayCircle, BarChart3, Lock, Globe
+  HelpCircle, Monitor, PlayCircle, BarChart3, Lock, Globe, Database
 } from 'lucide-react';
 
 interface UserManualModalProps {
@@ -538,13 +538,13 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({
 
                 {/* Feature 3 */}
                 <div className="flex items-start space-x-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 flex items-center justify-center shrink-0">
-                    <Globe className="w-6 h-6" />
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Database className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">SchezTripNGo App Integration</h4>
+                    <h4 className="font-bold text-slate-900 text-sm">Cloud & Offline Database Synchronization</h4>
                     <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      Access the embedded SchezTripNGo scheduling and trip planning workspace directly inside the app, or launch it in a new tab for seamless route coordination.
+                      Generated reports, settings, and user profiles automatically synchronize with Firestore and local browser storage for reliable, multi-device record keeping and instant offline access.
                     </p>
                   </div>
                 </div>
