@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TripReportData, JobRow, SettingsConfig } from '../types';
+import { UserProfile } from '../lib/firebase';
 import { Printer, Download, Copy, Plus, Trash2, Check, RefreshCw, ArrowLeft, ChevronUp, ChevronDown, Layers, User, RotateCcw, AlertTriangle, FileUp, Sparkles, FileSpreadsheet, ListChecks, Clock, Mail, BookOpen } from 'lucide-react';
 import { computeWorkingHours, computeShiftTotalHours, calculateWorkWeekRange, detectJobAssignedFromLabel, formatActualWorkingHoursInput, parseActualWorkingHoursString, cleanJobTimeString, computePredictedDailyWorkingHours, parseEquipmentCount, calculateWeeklyFieldTimeTotal, getDayScheduleString, isPenndotRegionOrTech, cleanShiftTimeString } from '../utils/kmlParser';
 import { getStoredHistoryReports } from '../utils/historyStorage';
@@ -12,6 +13,7 @@ interface TripAnalysisTemplateProps {
   reportsList: TripReportData[];
   historyReports?: TripReportData[];
   userId?: string;
+  currentUserProfile?: UserProfile | null;
   onUpdateReportsList: (updatedList: TripReportData[]) => void;
   onClearAllReports?: () => void;
   onAddTechnicianReport: (newReport: TripReportData) => void;
@@ -26,6 +28,7 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
   reportsList,
   historyReports,
   userId,
+  currentUserProfile,
   onUpdateReportsList,
   onClearAllReports,
   onAddTechnicianReport,
@@ -964,14 +967,9 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
                     />
                   </div>
 
-                  {/* Weekly Headers */}
-                  <div className="grid grid-cols-2 border-b border-slate-900 bg-[#fef08a] text-center font-extrabold text-[11px] sm:text-xs">
-                    <div className="p-2 border-r border-slate-900">
-                      Predicted Weekly Working Hours
-                    </div>
-                    <div className="p-2">
-                      Actual Weekly Working Hours
-                    </div>
+                  {/* Work Week Header */}
+                  <div className="border-b border-slate-900 bg-[#fef08a] text-center font-extrabold text-[11px] sm:text-xs text-slate-950 p-2">
+                    Work Week
                   </div>
 
                   {/* Date Range Picker Selector */}
@@ -1068,6 +1066,7 @@ export const TripAnalysisTemplate: React.FC<TripAnalysisTemplateProps> = ({
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
         reportsList={reportsList}
+        currentUserProfile={currentUserProfile}
       />
     </div>
   );
