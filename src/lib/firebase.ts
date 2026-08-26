@@ -30,7 +30,7 @@ import {
 import firebaseConfigData from '../../firebase-applet-config.json';
 import { SettingsConfig } from '../types';
 import { INITIAL_SETTINGS, getStoredSettings } from '../utils/defaultSettings';
-import { getStoredHistoryReports, replaceLocalHistoryCache } from '../utils/historyStorage';
+import { getStoredHistoryReports, replaceLocalHistoryCache, isReportExpired } from '../utils/historyStorage';
 
 const firebaseConfig = {
   apiKey: firebaseConfigData.apiKey,
@@ -1090,11 +1090,10 @@ export interface UserTripReportDoc {
   updatedAt: string;
 }
 
-// Fetch all trip reports belonging strictly to a specific user UID (auto-deletes records older than 10 days)
+// Fetch all trip reports belonging strictly to a specific user UID (auto-deletes records older than 10 days based on Schedule Date)
 export async function fetchUserReportsFromFirestore(userId: string): Promise<any[]> {
   if (!userId || isFirestoreQuotaExceeded) return [];
   try {
-    const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     const colRef = collection(db, 'trip_reports');
     const q = query(colRef, where('userId', '==', userId));
@@ -1104,17 +1103,8 @@ export async function fetchUserReportsFromFirestore(userId: string): Promise<any
     for (const docSnap of snap.docs) {
       const data = docSnap.data();
       if (data && data.report) {
-        let recordTime = now;
-        if (data.updatedAt) {
-          const parsed = new Date(data.updatedAt).getTime();
-          if (!isNaN(parsed)) recordTime = parsed;
-        } else if (data.report.timestamp) {
-          recordTime = Number(data.report.timestamp);
-        }
-
-        const age = now - recordTime;
-        if (age > TEN_DAYS_MS) {
-          // Automatically delete stored reports older than 10 days from database if not quota exceeded
+        if (isReportExpired(data.report, now)) {
+          // Automatically delete stored reports older than 10 days based on Schedule Date from Firestore database
           if (!isFirestoreQuotaExceeded) {
             deleteDoc(docSnap.ref).catch((err) => checkAndHandleQuotaError(err));
           }
@@ -1215,15 +1205,7 @@ export function subscribeToUserReports(
       snap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         if (data && data.report) {
-          let recordTime = now;
-          if (data.updatedAt) {
-            const parsed = new Date(data.updatedAt).getTime();
-            if (!isNaN(parsed)) recordTime = parsed;
-          } else if (data.report.timestamp) {
-            recordTime = Number(data.report.timestamp);
-          }
-          const age = now - recordTime;
-          if (age > TEN_DAYS_MS) {
+          if (isReportExpired(data.report, now)) {
             if (!isFirestoreQuotaExceeded) {
               deleteDoc(docSnap.ref).catch((e) => checkAndHandleQuotaError(e));
             }
