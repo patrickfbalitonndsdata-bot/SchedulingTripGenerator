@@ -138,7 +138,7 @@ export const HistoryRecordsViewer: React.FC<HistoryRecordsViewerProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Reports are automatically retained for up to 10 days to calculate weekly <strong className="text-slate-700">Running Total - Field Time Cal</strong> by adding Predicted Daily Working Hours.
+            Reports are automatically retained for up to 10 days from their <strong className="text-slate-700">Schedule Date</strong> to calculate weekly <strong className="text-slate-700">Running Total - Field Time Cal</strong> by adding Predicted Daily Working Hours.
           </p>
         </div>
 
