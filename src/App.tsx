@@ -10,15 +10,8 @@ import {
   UserProfile, 
   getStoredLocalSession, 
   saveLocalSession,
-  fetchUserReportsFromFirestore,
-  saveUserReportToFirestore,
-  deleteUserReportFromFirestore,
-  clearUserReportsFromFirestore,
-  subscribeToUserReports,
   subscribeToGlobalSettings,
-  saveGlobalSettingsToFirestore,
-  attemptAutoSyncLocalDataToFirestore,
-  getFirestoreSyncState
+  saveGlobalSettingsToFirestore
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { TripReportData, SettingsConfig } from './types';
@@ -28,7 +21,6 @@ import {
   getStoredHistoryReports, 
   saveReportToHistory, 
   saveMultipleReportsToHistory, 
-  replaceLocalHistoryCache,
   deleteSingleHistoryRecord, 
   clearAllHistoryRecords,
   findExistingReportByTechAndDate,
@@ -147,7 +139,7 @@ export default function App() {
   const [reportsList, setReportsList] = useState<TripReportData[]>([]);
   const [historyReports, setHistoryReports] = useState<TripReportData[]>([]);
 
-  // Automatically fetch & sync user-specific history records with short-lived real-time listener
+  // Automatically fetch & load user-specific history records from local storage
   useEffect(() => {
     if (!currentUserProfile) {
       setHistoryReports([]);
@@ -155,90 +147,23 @@ export default function App() {
     }
 
     const userId = currentUserProfile.uid;
-
-    // Fast initial optimistic load from user-scoped localStorage
+    // Load local history records (automatically filtering expired records based on Date of Schedule)
     const localReports = getStoredHistoryReports(userId);
     setHistoryReports(localReports);
-
-    // Short-lived realtime listener subscription (automatically unsubscribes on unmount or user change)
-    const unsubscribe = subscribeToUserReports(
-      userId,
-      (fsReports) => {
-        replaceLocalHistoryCache(fsReports, userId);
-        setHistoryReports(fsReports);
-      },
-      (err) => {
-        console.error('Failed to sync user reports from Firestore database:', err);
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [currentUserProfile]);
-
-  // Automatic Background Data Synchronization Engine
-  // Periodically checks if Firestore quota limits have reset and pushes stored local data to the cloud database
-  useEffect(() => {
-    if (!currentUserProfile) return;
-
-    const userId = currentUserProfile.uid;
-
-    const runSyncCheck = async () => {
-      const res = await attemptAutoSyncLocalDataToFirestore(userId);
-      if (res.synced) {
-        console.log(`[Auto-Sync Engine] ${res.message}`);
-        // Refresh local history with synced cloud reports
-        const fsReports = await fetchUserReportsFromFirestore(userId);
-        if (fsReports && fsReports.length > 0) {
-          replaceLocalHistoryCache(fsReports, userId);
-          setHistoryReports(fsReports);
-        }
-      }
-    };
-
-    // Initial sync check on user login/mount
-    runSyncCheck();
-
-    // Trigger auto-sync when browser network reconnects online
-    const handleOnline = () => {
-      console.log('[Auto-Sync Engine] Network reconnected. Executing background synchronization...');
-      runSyncCheck();
-    };
-    window.addEventListener('online', handleOnline);
-
-    // Run periodic sync check every 3 minutes (180,000 ms)
-    const syncInterval = setInterval(runSyncCheck, 180000);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      clearInterval(syncInterval);
-    };
   }, [currentUserProfile]);
 
   const handleRefreshHistory = () => {
     const userId = currentUserProfile?.uid;
-    if (userId) {
-      fetchUserReportsFromFirestore(userId).then((fsReports) => {
-        replaceLocalHistoryCache(fsReports, userId);
-        setHistoryReports(fsReports);
-      });
-    } else {
-      setHistoryReports(getStoredHistoryReports(userId));
-    }
+    setHistoryReports(getStoredHistoryReports(userId));
   };
 
-  const handleDeleteHistoryRecord = async (report: TripReportData) => {
+  const handleDeleteHistoryRecord = (report: TripReportData) => {
     const userId = currentUserProfile?.uid;
     deleteSingleHistoryRecord(report, {
       date: report.dateOfSchedule,
       tech: report.technician,
       fileName: report.fileName
     }, userId);
-
-    if (userId && report.id) {
-      await deleteUserReportFromFirestore(userId, report.id);
-    }
 
     // Remove from active reportsList if present so it isn't auto-saved back
     setReportsList(prev => prev.filter(r => {
@@ -249,21 +174,12 @@ export default function App() {
       return true;
     }));
 
-    if (userId) {
-      const fsReports = await fetchUserReportsFromFirestore(userId);
-      replaceLocalHistoryCache(fsReports, userId);
-      setHistoryReports(fsReports);
-    } else {
-      setHistoryReports(getStoredHistoryReports(userId));
-    }
+    setHistoryReports(getStoredHistoryReports(userId));
   };
 
-  const handleClearAllHistory = async () => {
+  const handleClearAllHistory = () => {
     const userId = currentUserProfile?.uid;
     clearAllHistoryRecords(userId);
-    if (userId) {
-      await clearUserReportsFromFirestore(userId);
-    }
     setReportsList([]);
     setHistoryReports([]);
   };
@@ -281,7 +197,7 @@ export default function App() {
     mode: 'replace' | 'add';
   } | null>(null);
 
-  const commitReportGenerated = async (newReport: TripReportData, mode: 'replace' | 'add') => {
+  const commitReportGenerated = (newReport: TripReportData, mode: 'replace' | 'add') => {
     if (mode === 'replace') {
       setReportsList([newReport]);
     } else {
@@ -289,21 +205,9 @@ export default function App() {
     }
 
     const userId = currentUserProfile?.uid;
-    // Always persist to local browser storage first for immediate offline & quota resilience
+    // Persist to local browser storage
     saveReportToHistory(newReport, userId);
-
-    if (userId) {
-      await saveUserReportToFirestore(userId, newReport);
-      const fsReports = await fetchUserReportsFromFirestore(userId);
-      if (fsReports && fsReports.length > 0) {
-        replaceLocalHistoryCache(fsReports, userId);
-        setHistoryReports(fsReports);
-      } else {
-        setHistoryReports(getStoredHistoryReports(userId));
-      }
-    } else {
-      setHistoryReports(getStoredHistoryReports(userId));
-    }
+    setHistoryReports(getStoredHistoryReports(userId));
   };
 
   const processReportCommit = (newReport: TripReportData, mode: 'replace' | 'add') => {
@@ -347,40 +251,24 @@ export default function App() {
     setPendingMultipleProject(null);
   };
 
-  const handleConfirmRewrite = async () => {
+  const handleConfirmRewrite = () => {
     if (!pendingDuplicate) return;
     const { newReport, existingReport, mode } = pendingDuplicate;
     const userId = currentUserProfile?.uid;
 
-    // 1. Delete prior record for specific technician & schedule date from local storage & Firestore
+    // 1. Delete prior record for specific technician & schedule date from local storage
     deleteSingleHistoryRecord(existingReport, {
       date: existingReport.dateOfSchedule,
       tech: existingReport.technician,
       fileName: existingReport.fileName
     }, userId);
 
-    if (userId && existingReport.id) {
-      await deleteUserReportFromFirestore(userId, existingReport.id);
-    }
-
     // 2. Remove prior record for specific technician & schedule date from active reportsList
     const filteredActive = reportsList.filter(r => !isSameTechnicianAndScheduleDate(r, existingReport));
 
-    // 3. Save new report to local storage & Firestore database
+    // 3. Save new report to local storage
     saveReportToHistory(newReport, userId);
-
-    if (userId) {
-      await saveUserReportToFirestore(userId, newReport);
-      const fsReports = await fetchUserReportsFromFirestore(userId);
-      if (fsReports && fsReports.length > 0) {
-        replaceLocalHistoryCache(fsReports, userId);
-        setHistoryReports(fsReports);
-      } else {
-        setHistoryReports(getStoredHistoryReports(userId));
-      }
-    } else {
-      setHistoryReports(getStoredHistoryReports(userId));
-    }
+    setHistoryReports(getStoredHistoryReports(userId));
 
     // 4. Update active reportsList
     if (mode === 'replace') {
@@ -424,7 +312,7 @@ export default function App() {
     setReportsList(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleLoadSample = async () => {
+  const handleLoadSample = () => {
     const report1 = createSampleTripReport({
       technician: 'Koda Costello',
       licensePlate: '20SB0180',
@@ -478,16 +366,8 @@ export default function App() {
     const userId = currentUserProfile?.uid;
     setReportsList([report1, report2]);
 
-    if (userId) {
-      await saveUserReportToFirestore(userId, report1);
-      await saveUserReportToFirestore(userId, report2);
-      const fsReports = await fetchUserReportsFromFirestore(userId);
-      replaceLocalHistoryCache(fsReports, userId);
-      setHistoryReports(fsReports);
-    } else {
-      saveMultipleReportsToHistory([report1, report2], userId);
-      setHistoryReports(getStoredHistoryReports(userId));
-    }
+    saveMultipleReportsToHistory([report1, report2], userId);
+    setHistoryReports(getStoredHistoryReports(userId));
     setActiveTab('sheet');
   };
 
@@ -556,18 +436,11 @@ export default function App() {
             historyReports={historyReports}
             userId={currentUserProfile?.uid}
             currentUserProfile={currentUserProfile}
-            onUpdateReportsList={async (updatedList) => {
+            onUpdateReportsList={(updatedList) => {
               setReportsList(updatedList);
               const userId = currentUserProfile?.uid;
-              if (userId) {
-                await Promise.all(updatedList.map(r => saveUserReportToFirestore(userId, r)));
-                const fsReports = await fetchUserReportsFromFirestore(userId);
-                replaceLocalHistoryCache(fsReports, userId);
-                setHistoryReports(fsReports);
-              } else {
-                saveMultipleReportsToHistory(updatedList, userId);
-                setHistoryReports(getStoredHistoryReports(userId));
-              }
+              saveMultipleReportsToHistory(updatedList, userId);
+              setHistoryReports(getStoredHistoryReports(userId));
             }}
             onClearAllReports={() => setReportsList([])}
             onAddTechnicianReport={handleAddTechnicianReport}
