@@ -1,7 +1,7 @@
 import { TripReportData } from '../types';
 
 const HISTORY_STORAGE_KEY = 'trip_analysis_stored_reports_10d';
-const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+export const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
 
 function getStorageKey(userId?: string): string {
   if (userId && userId.trim()) {
@@ -15,6 +15,83 @@ export interface StoredReportRecord {
   report: TripReportData;
 }
 
+/**
+ * Extracts the effective reference timestamp for a trip report based primarily on its dateOfSchedule.
+ * If dateOfSchedule is valid (e.g. "8/3/2026", "08/03/2026", "2026-08-03"), it returns the end-of-day timestamp
+ * of that schedule date (23:59:59.999) so that the report remains valid for 10 full calendar days
+ * after the schedule date.
+ * If dateOfSchedule is missing or unparseable, it falls back to uploadedAt, timestamp, or updatedAt.
+ */
+export function getReportScheduleTimestamp(report: any): number {
+  if (!report) return Date.now();
+
+  const schedDateStr = report.dateOfSchedule || report.date || '';
+  if (schedDateStr && typeof schedDateStr === 'string' && schedDateStr.trim()) {
+    const trimmed = schedDateStr.trim();
+
+    // Match MM/DD/YYYY or M/D/YYYY
+    const mdyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdyMatch) {
+      const month = parseInt(mdyMatch[1], 10) - 1;
+      const day = parseInt(mdyMatch[2], 10);
+      const year = parseInt(mdyMatch[3], 10);
+      const d = new Date(year, month, day, 23, 59, 59, 999);
+      if (!isNaN(d.getTime())) {
+        return d.getTime();
+      }
+    }
+
+    // Match YYYY-MM-DD
+    const ymdMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (ymdMatch) {
+      const year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10) - 1;
+      const day = parseInt(ymdMatch[3], 10);
+      const d = new Date(year, month, day, 23, 59, 59, 999);
+      if (!isNaN(d.getTime())) {
+        return d.getTime();
+      }
+    }
+
+    // Standard new Date parse fallback
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      parsed.setHours(23, 59, 59, 999);
+      return parsed.getTime();
+    }
+  }
+
+  // Fallback to uploaded timestamp or creation time
+  if (report.uploadedAt) {
+    const p = Number(report.uploadedAt);
+    if (!isNaN(p) && p > 0) return p;
+    const d = new Date(report.uploadedAt).getTime();
+    if (!isNaN(d) && d > 0) return d;
+  }
+
+  if (report.timestamp) {
+    const p = Number(report.timestamp);
+    if (!isNaN(p) && p > 0) return p;
+  }
+
+  if (report.updatedAt) {
+    const d = new Date(report.updatedAt).getTime();
+    if (!isNaN(d) && d > 0) return d;
+  }
+
+  return Date.now();
+}
+
+/**
+ * Determines whether a report has exceeded the 10-day retention window based on its Schedule Date.
+ */
+export function isReportExpired(report: any, now: number = Date.now()): boolean {
+  if (!report) return true;
+  const scheduleTime = getReportScheduleTimestamp(report);
+  const age = now - scheduleTime;
+  return age > TEN_DAYS_MS;
+}
+
 export function getStoredHistoryReports(userId?: string): TripReportData[] {
   try {
     const key = getStorageKey(userId);
@@ -25,11 +102,10 @@ export function getStoredHistoryReports(userId?: string): TripReportData[] {
     if (!Array.isArray(records)) return [];
 
     const now = Date.now();
-    // Filter reports within 10 days maximum duration
+    // Filter reports within 10 days of their Schedule Date
     const validRecords = records.filter(item => {
       if (!item || !item.report) return false;
-      const age = now - (item.timestamp || 0);
-      return age <= TEN_DAYS_MS;
+      return !isReportExpired(item.report, now);
     });
 
     if (validRecords.length !== records.length) {
@@ -101,8 +177,10 @@ export function findExistingReportByTechAndDate(
 export function replaceLocalHistoryCache(reports: TripReportData[], userId?: string): void {
   try {
     const key = getStorageKey(userId);
-    const records: StoredReportRecord[] = reports.map(r => ({
-      timestamp: Number(r.uploadedAt) || Date.now(),
+    const now = Date.now();
+    const validReports = (reports || []).filter(r => !isReportExpired(r, now));
+    const records: StoredReportRecord[] = validReports.map(r => ({
+      timestamp: getReportScheduleTimestamp(r),
       report: r
     }));
     localStorage.setItem(key, JSON.stringify(records));
@@ -125,13 +203,15 @@ export function saveReportToHistory(report: TripReportData, userId?: string): Tr
       updated = [report, ...current];
     }
 
-    const records: StoredReportRecord[] = updated.map(r => ({
-      timestamp: Date.now(),
+    const now = Date.now();
+    const validReports = updated.filter(r => !isReportExpired(r, now));
+    const records: StoredReportRecord[] = validReports.map(r => ({
+      timestamp: getReportScheduleTimestamp(r),
       report: r
     }));
 
     localStorage.setItem(key, JSON.stringify(records));
-    return updated;
+    return validReports;
   } catch (e) {
     console.error('Failed to save report to history', e);
     return [];
@@ -150,8 +230,10 @@ export function saveMultipleReportsToHistory(reports: TripReportData[], userId?:
     }
   }
 
-  const records: StoredReportRecord[] = updated.map(r => ({
-    timestamp: Date.now(),
+  const now = Date.now();
+  const validReports = updated.filter(r => !isReportExpired(r, now));
+  const records: StoredReportRecord[] = validReports.map(r => ({
+    timestamp: getReportScheduleTimestamp(r),
     report: r
   }));
 
@@ -160,7 +242,7 @@ export function saveMultipleReportsToHistory(reports: TripReportData[], userId?:
   } catch (e) {
     console.error('Failed to save multiple reports to history', e);
   }
-  return updated;
+  return validReports;
 }
 
 export function clearAllHistoryRecords(userId?: string): void {
