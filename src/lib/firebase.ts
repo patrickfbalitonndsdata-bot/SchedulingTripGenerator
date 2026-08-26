@@ -901,6 +901,41 @@ export async function loginUserAccount(identifier: string, pass: string): Promis
       return superProfile;
     }
 
+    // Check if logging in with known team accounts
+    const teamPresets: Record<string, { displayName: string; email: string; assignedRegion: string }> = {
+      teamjames: { displayName: 'Team James', email: 'james.laciste@ndsdata.com', assignedRegion: 'South Central' },
+      teamdwight: { displayName: 'Team Dwight', email: 'dwight.pagaduan@ndsdata.com', assignedRegion: 'South Central' },
+      teamjohn: { displayName: 'Team John', email: 'john.bodino@ndsdata.com', assignedRegion: 'South Central' },
+      teamshane: { displayName: 'Team Shane', email: 'shane.ravanes@ndsdata.com', assignedRegion: 'South Central' },
+      teamjovie: { displayName: 'Team Jovie', email: 'jovie.calma@ndsdata.com', assignedRegion: 'South Central' },
+      teammarc: { displayName: 'Team Marc', email: 'marc.pagcaliwagan@ndsdata.com', assignedRegion: 'South Central' }
+    };
+
+    const matchedTeamKey = Object.keys(teamPresets).find(
+      k => cleanIdentifier === k || targetEmail.toLowerCase().includes(k) || targetEmail.toLowerCase() === teamPresets[k].email.toLowerCase()
+    );
+
+    if (snap.empty && matchedTeamKey) {
+      const info = teamPresets[matchedTeamKey];
+      const teamUid = `user_${matchedTeamKey}`;
+      const teamProfile: UserProfile = {
+        uid: teamUid,
+        email: info.email,
+        username: matchedTeamKey,
+        usernameLower: matchedTeamKey,
+        displayName: info.displayName,
+        role: 'user',
+        status: 'active',
+        assignedRegion: info.assignedRegion,
+        avatarId: 'owl',
+        createdAt: new Date().toISOString(),
+        passwordHash: hashPassword(pass)
+      };
+      await setUserProfile(teamProfile);
+      saveLocalSession(teamProfile);
+      return teamProfile;
+    }
+
     if (snap.empty) {
       throw new Error('Invalid username/email or password. Please verify your credentials.');
     }
