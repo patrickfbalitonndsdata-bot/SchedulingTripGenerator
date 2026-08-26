@@ -555,6 +555,7 @@ export default function App() {
             reportsList={reportsList}
             historyReports={historyReports}
             userId={currentUserProfile?.uid}
+            currentUserProfile={currentUserProfile}
             onUpdateReportsList={async (updatedList) => {
               setReportsList(updatedList);
               const userId = currentUserProfile?.uid;
