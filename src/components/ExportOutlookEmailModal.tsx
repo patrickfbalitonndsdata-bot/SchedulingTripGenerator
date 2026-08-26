@@ -1,41 +1,95 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Download, Copy, Check, ExternalLink, Sparkles, FileText, Layout, Palette } from 'lucide-react';
+import { X, Mail, Download, Copy, Check, ExternalLink, Sparkles, FileText, Layout, Palette, User, Users, RefreshCw } from 'lucide-react';
 import { TripReportData } from '../types';
 import { generateTripReportEmailHtml, generateEMLContent, downloadEMLFile, EmailExportOptions } from '../utils/emailExporter';
+import { UserProfile } from '../lib/firebase';
+import {
+  TEAM_EMAIL_PRESETS,
+  TeamEmailPreset,
+  getEmailPresetForUser,
+  buildEmailSubjectAndGreeting
+} from '../constants/teamEmailPresets';
 
 interface ExportOutlookEmailModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportsList: TripReportData[];
+  currentUserProfile?: UserProfile | null;
 }
 
 export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = ({
   isOpen,
   onClose,
-  reportsList
+  reportsList,
+  currentUserProfile
 }) => {
   const [copiedHtml, setCopiedHtml] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
 
-  // Default values based on context and reference photo
+  // Active selected preset ID (e.g. 'teamjames', 'teamdwight', 'custom', etc.)
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('teamjames');
+
+  // Form values
   const [subject, setSubject] = useState('');
-  const [toRecipients, setToRecipients] = useState("'Chris James Laciste'");
-  const [ccRecipients, setCcRecipients] = useState("'crislie.busayong@ndsdata.com'; 'katrinjoyce.pasucal@ndsdata.com'");
-  const [introMessage, setIntroMessage] = useState('Hi All,\n\nPlease see trip analysis report for the South-Central Region (Monday Schedule).');
+  const [toRecipients, setToRecipients] = useState('');
+  const [ccRecipients, setCcRecipients] = useState('');
+  const [introMessage, setIntroMessage] = useState('');
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
-  // Compute default subject on open or reports change
+  // Compute and initialize default values on open or user profile / reports change
   useEffect(() => {
-    if (reportsList && reportsList.length > 0) {
-      const primaryRegion = reportsList[0]?.region || 'South Central';
-      const dateRange = reportsList[0]?.dateOfSchedule 
-        ? `${reportsList[0].dateOfSchedule}` 
-        : '07/20- 07/21';
-      setSubject(`Trip Analysis | ${primaryRegion} Region | ${dateRange} (Monday Schedule)`);
-    } else {
-      setSubject('Trip Analysis | South Central Region | Schedule');
-    }
-  }, [reportsList]);
+    if (!isOpen) return;
+
+    // Detect matched preset for current logged-in user
+    const matchedPreset = getEmailPresetForUser(currentUserProfile);
+    setSelectedPresetId(matchedPreset.id);
+
+    // Get primary date and region
+    const firstReport = reportsList && reportsList.length > 0 ? reportsList[0] : undefined;
+    const assignedRegion = currentUserProfile?.assignedRegion;
+    const reportRegion = firstReport?.region;
+    const dateOfSchedule = firstReport?.dateOfSchedule;
+
+    const { subject: defaultSubject, introMessage: defaultIntro } = buildEmailSubjectAndGreeting({
+      assignedRegion,
+      reportRegion,
+      dateOfSchedule
+    });
+
+    setSubject(defaultSubject);
+    setToRecipients(matchedPreset.toRecipients);
+    setCcRecipients(matchedPreset.ccRecipients);
+    setIntroMessage(defaultIntro);
+  }, [isOpen, reportsList, currentUserProfile]);
+
+  // Handler to switch preset
+  const handleApplyPreset = (preset: TeamEmailPreset) => {
+    setSelectedPresetId(preset.id);
+    setToRecipients(preset.toRecipients);
+    setCcRecipients(preset.ccRecipients);
+  };
+
+  // Handler to reset all fields to user account defaults
+  const handleResetToAccountDefaults = () => {
+    const matchedPreset = getEmailPresetForUser(currentUserProfile);
+    setSelectedPresetId(matchedPreset.id);
+
+    const firstReport = reportsList && reportsList.length > 0 ? reportsList[0] : undefined;
+    const assignedRegion = currentUserProfile?.assignedRegion;
+    const reportRegion = firstReport?.region;
+    const dateOfSchedule = firstReport?.dateOfSchedule;
+
+    const { subject: defaultSubject, introMessage: defaultIntro } = buildEmailSubjectAndGreeting({
+      assignedRegion,
+      reportRegion,
+      dateOfSchedule
+    });
+
+    setSubject(defaultSubject);
+    setToRecipients(matchedPreset.toRecipients);
+    setCcRecipients(matchedPreset.ccRecipients);
+    setIntroMessage(defaultIntro);
+  };
 
   if (!isOpen) return null;
 
@@ -88,6 +142,8 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
     window.open(mailtoUrl, '_blank');
   };
 
+  const activeUserRegion = currentUserProfile?.assignedRegion || (reportsList && reportsList[0]?.region) || 'South Central';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
@@ -108,7 +164,7 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Generates a pre-formatted Outlook draft message with exact dark/gold trip report tables
+                Auto-populated for <strong className="text-amber-400 font-semibold">{currentUserProfile?.displayName || currentUserProfile?.username || 'Team'}</strong> with assigned region <strong className="text-slate-200">{activeUserRegion}</strong>
               </p>
             </div>
           </div>
@@ -124,6 +180,51 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
         {/* Modal Main Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
+          {/* Account Preset Switcher Bar */}
+          <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-2xl space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2 text-xs font-bold text-slate-300">
+                <Users className="w-4 h-4 text-amber-400" />
+                <span>Account Preset Recipients:</span>
+                <span className="text-[11px] font-normal text-slate-400">
+                  (Click any team to auto-fill To/CC)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleResetToAccountDefaults}
+                className="flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded-lg border border-slate-700 transition-colors"
+                title="Reset to your account assigned region and default recipients"
+              >
+                <RefreshCw className="w-3 h-3 text-amber-400" />
+                <span>Reset to My Defaults</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              {TEAM_EMAIL_PRESETS.map((preset) => {
+                const isActive = selectedPresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleApplyPreset(preset)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold text-left transition-all border ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md scale-[1.02]'
+                        : 'bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-800'
+                    }`}
+                  >
+                    <div className="truncate">{preset.name}</div>
+                    <div className={`text-[10px] truncate ${isActive ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>
+                      {preset.id}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Top Form Controls Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80 text-xs text-slate-200">
             
@@ -137,6 +238,7 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                placeholder="Trip Analysis | South Central Region | 8/26/2026 (Monday Schedule)"
                 className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl font-bold text-amber-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
               />
             </div>
@@ -147,9 +249,12 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
               <input
                 type="text"
                 value={toRecipients}
-                onChange={(e) => setToRecipients(e.target.value)}
-                placeholder="'Chris James Laciste'"
-                className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={(e) => {
+                  setToRecipients(e.target.value);
+                  setSelectedPresetId('custom');
+                }}
+                placeholder="'Chris James Laciste' <james.laciste@ndsdata.com>"
+                className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
               />
             </div>
 
@@ -159,9 +264,12 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
               <input
                 type="text"
                 value={ccRecipients}
-                onChange={(e) => setCcRecipients(e.target.value)}
-                placeholder="'crislie.busayong@ndsdata.com'; 'katrinjoyce.pasucal@ndsdata.com'"
-                className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={(e) => {
+                  setCcRecipients(e.target.value);
+                  setSelectedPresetId('custom');
+                }}
+                placeholder="'katrinjoyce.pasucal@ndsdata.com'; 'crislie.busayong@ndsdata.com'"
+                className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
               />
             </div>
 
@@ -213,7 +321,7 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
                 <span>Outlook Email Message Preview:</span>
               </span>
               <span className="text-slate-500 text-[11px] font-normal">
-                Exact render preview matching Outlook dark mode template
+                Exact render preview matching Outlook template
               </span>
             </div>
 
@@ -292,3 +400,4 @@ export const ExportOutlookEmailModal: React.FC<ExportOutlookEmailModalProps> = (
     </div>
   );
 };
+
