@@ -217,14 +217,13 @@ export function generateTripReportEmailHtml(
                   </td>
                 </tr>
                 
-                <!-- WEEKLY HEADERS SPLIT -->
+                <!-- WORK WEEK HEADER -->
                 <tr style="background-color: ${labelBg}; color: ${labelText}; font-weight: bold; text-align: center;">
-                  <td style="width: 135px; border-right: 3px solid ${tableBorderColor}; border-bottom: 3px solid ${tableBorderColor}; padding: 6px;">Predicted Weekly Working Hours</td>
-                  <td style="width: 135px; border-bottom: 3px solid ${tableBorderColor}; padding: 6px;">Actual Weekly Working Hours</td>
+                  <td colspan="2" style="border-bottom: 3px solid ${tableBorderColor}; padding: 6px;">Work Week</td>
                 </tr>
 
                 <!-- DATE RANGE BANNER -->
-                <tr style="background-color: ${labelBg}; color: ${labelText}; font-weight: bold; text-align: center;">
+                <tr style="background-color: ${cellBg}; color: ${textColor}; font-weight: bold; text-align: center;">
                   <td colspan="2" style="border-bottom: 3px solid ${tableBorderColor}; padding: 6px;">
                     ${report.weeklyDateRange || '07/19/2026 - 7/25/2026'}
                   </td>
