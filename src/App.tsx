@@ -530,7 +530,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-slate-200">SchEZTrip</span>
+            <span className="font-semibold text-slate-200">Sch EZ Trip</span>
             <span className="text-slate-600">•</span>
             <span className="text-slate-400">Trip Analysis Automator</span>
           </div>
