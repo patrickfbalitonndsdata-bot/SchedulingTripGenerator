@@ -25,20 +25,6 @@
         "adminPasscode": { "type": "string" },
         "updatedAt": { "type": "string" }
       }
-    },
-    "trip_reports": {
-      "type": "object",
-      "description": "Historical trip reports and analysis records",
-      "properties": {
-        "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "technician": { "type": "string" },
-        "dateOfSchedule": { "type": "string" },
-        "predictedDailyWorkingHours": { "type": "string" },
-        "actualDailyWorkingHours": { "type": "string" },
-        "createdAt": { "type": "string" }
-      },
-      "required": ["id", "technician", "dateOfSchedule"]
     }
   }
 }
