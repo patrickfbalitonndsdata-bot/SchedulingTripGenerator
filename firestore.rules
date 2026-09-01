@@ -7,7 +7,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // App settings collection
+    // App settings collection (Technician Rosters, vehicle plates, regions, config)
     match /app_settings/{document=**} {
       allow read, write: if true;
     }
@@ -15,11 +15,6 @@ service cloud.firestore {
     // Email verification codes collection
     match /emailVerifications/{document=**} {
       allow read, write: if true;
-    }
-
-    // Trip reports collection
-    match /trip_reports/{document=**} {
-      allow read, write, delete: if true;
     }
   }
 }
