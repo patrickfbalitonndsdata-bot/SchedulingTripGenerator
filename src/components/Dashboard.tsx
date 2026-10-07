@@ -1,7 +1,8 @@
 import React from 'react';
 import { UploadZone } from './UploadZone';
-import { TripReportData } from '../types';
+import { TripReportData, ActiveHolidayTheme } from '../types';
 import { HistoryRecordsViewer } from './HistoryRecordsViewer';
+import { getHolidayThemeMeta } from '../utils/holidayTheme';
 import { FileSpreadsheet, Clock, CheckCircle2, AlertTriangle, Layers, Calendar, ArrowRight, ShieldCheck, Cpu, Plus } from 'lucide-react';
 
 interface DashboardProps {
@@ -18,6 +19,7 @@ interface DashboardProps {
   onRequestAdminLock: () => void;
   onDeleteHistoryRecord?: (report: TripReportData) => void;
   onClearAllHistory?: () => void;
+  activeHolidayTheme?: ActiveHolidayTheme;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -33,44 +35,65 @@ export const Dashboard: React.FC<DashboardProps> = ({
   isAdminAuthenticated,
   onRequestAdminLock,
   onDeleteHistoryRecord,
-  onClearAllHistory
+  onClearAllHistory,
+  activeHolidayTheme = 'default'
 }) => {
+  const themeMeta = getHolidayThemeMeta(activeHolidayTheme);
+  const isHoliday = activeHolidayTheme !== 'default';
+
   return (
     <div className="space-y-8 pb-12">
       {/* Top Banner / Welcome */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      <div className={`border rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden ${
+        activeHolidayTheme === 'halloween'
+          ? 'bg-gradient-to-r from-[#120521] via-[#240b3b] to-[#36111b] border-orange-500/40 shadow-orange-950/40'
+          : activeHolidayTheme === 'christmas'
+          ? 'bg-gradient-to-r from-[#05291d] via-[#4a1010] to-[#063324] border-amber-400/40 shadow-emerald-950/40'
+          : activeHolidayTheme === 'new_year'
+          ? 'bg-gradient-to-r from-[#04091e] via-[#0e1b4d] to-[#1e1b4b] border-yellow-400/40 shadow-indigo-950/40'
+          : 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-slate-800'
+      }`}>
         <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="relative z-10 max-w-3xl space-y-3">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-semibold">
-            <Cpu className="w-3.5 h-3.5 text-amber-400" />
-            <span>Automated Samsara Log Processing</span>
+          <div className={`inline-flex items-center space-x-2 px-3 py-1 border rounded-full text-xs font-semibold ${themeMeta.badgeClass}`}>
+            {isHoliday ? (
+              <span>{themeMeta.emoji}</span>
+            ) : (
+              <Cpu className="w-3.5 h-3.5 text-amber-400" />
+            )}
+            <span>{themeMeta.bannerGreeting}</span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            SchEZTrip - Trip Analysis Automator
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5 flex-wrap">
+            <span>SchEZTrip - Trip Analysis Automator</span>
+            {activeHolidayTheme === 'new_year' && (
+              <span className="px-3 py-0.5 text-sm font-black bg-gradient-to-r from-yellow-300 to-amber-500 text-slate-950 rounded-xl shadow-md">
+                {new Date().getFullYear()}
+              </span>
+            )}
           </h1>
 
-          <p className="text-slate-300 text-sm leading-relaxed">
+          <p className="text-slate-200 text-sm leading-relaxed">
             Upload your Samsara Finished Trip Analysis KMZ/KML files to instantly extract shift timestamps, project numbers, equipment counts, and job statuses. Automatically encodes the official Trip Analysis spreadsheet report.
           </p>
         </div>
 
         {/* Feature Highlights */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-800 text-xs">
-          <div className="flex items-center space-x-2 text-slate-300">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10 text-xs">
+          <div className="flex items-center space-x-2 text-slate-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>KMZ & KML Auto-Extraction</span>
           </div>
-          <div className="flex items-center space-x-2 text-slate-300">
+          <div className="flex items-center space-x-2 text-slate-200">
             <Clock className="w-4 h-4 text-amber-400 shrink-0" />
             <span>Samsara Shift Timestamps</span>
           </div>
-          <div className="flex items-center space-x-2 text-slate-300">
+          <div className="flex items-center space-x-2 text-slate-200">
             <FileSpreadsheet className="w-4 h-4 text-amber-400 shrink-0" />
             <span>Standard Form Auto-Fill</span>
           </div>
-          <div className="flex items-center space-x-2 text-slate-300">
+          <div className="flex items-center space-x-2 text-slate-200">
             <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
             <span>Multi-Technician Stacked Sheets</span>
           </div>
@@ -80,11 +103,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Main Upload Area */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Layers className="w-5 h-5 text-amber-600" />
+          <h2 className={`text-lg font-bold flex items-center gap-2 ${
+            isHoliday ? 'text-white drop-shadow-sm' : 'text-slate-900'
+          }`}>
+            <Layers className="w-5 h-5 text-amber-400" />
             <span>1. File Upload & Log Parsing</span>
           </h2>
-          <span className="text-xs text-slate-500 font-medium">Supports Samsara Finished Trip Analysis KMZ / KML</span>
+          <span className={`text-xs font-medium ${isHoliday ? 'text-slate-300' : 'text-slate-500'}`}>
+            Supports Samsara Finished Trip Analysis KMZ / KML
+          </span>
         </div>
 
         <UploadZone
@@ -155,10 +182,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* History / Recent Processed Logs */}
       {historyReports.length > 0 && (
-        <div className="space-y-4 pt-4 border-t border-slate-200">
+        <div className={`space-y-4 pt-4 border-t ${isHoliday ? 'border-white/15' : 'border-slate-200'}`}>
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900">Recent Trip Analyses</h3>
-            <span className="text-xs text-slate-500">{historyReports.length} reports in active session</span>
+            <h3 className={`text-base font-bold ${isHoliday ? 'text-white' : 'text-slate-900'}`}>Recent Trip Analyses</h3>
+            <span className={`text-xs ${isHoliday ? 'text-slate-300' : 'text-slate-500'}`}>{historyReports.length} reports in active session</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
