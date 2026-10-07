@@ -3,6 +3,7 @@ import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { TripAnalysisTemplate } from './components/TripAnalysisTemplate';
 import { AuthLanding } from './components/AuthLanding';
+import { HolidayThemeOverlay } from './components/HolidayThemeOverlay';
 import { 
   auth, 
   getUserProfile, 
@@ -11,11 +12,13 @@ import {
   getStoredLocalSession, 
   saveLocalSession,
   subscribeToGlobalSettings,
-  saveGlobalSettingsToFirestore
+  saveGlobalSettingsToFirestore,
+  isSuperAdmin
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { TripReportData, SettingsConfig } from './types';
+import { TripReportData, SettingsConfig, HolidayThemePreference } from './types';
 import { getStoredSettings, saveSettings } from './utils/defaultSettings';
+import { resolveActiveHolidayTheme, getHolidayThemeMeta } from './utils/holidayTheme';
 import { createSampleTripReport, computePredictedDailyWorkingHours } from './utils/kmlParser';
 import { 
   getStoredHistoryReports, 
@@ -373,6 +376,37 @@ export default function App() {
 
   const activeReport = reportsList[0] || null;
 
+  // Determine if user is Admin or Superadmin
+  const canManageTheme = currentUserProfile?.role === 'admin' || isSuperAdmin(currentUserProfile);
+
+  // For regular users, theme picker is hidden and defaults to date-based ('auto') unless admin configured global setting
+  const effectiveThemePreference: HolidayThemePreference = canManageTheme
+    ? (settings.holidayTheme || 'auto')
+    : (settings.holidayTheme || 'auto');
+
+  const activeHolidayTheme = resolveActiveHolidayTheme(effectiveThemePreference);
+  const animationsEnabled = settings.themeAnimationsEnabled !== false; // Playing by default for all themes
+  const themeMeta = getHolidayThemeMeta(activeHolidayTheme);
+
+  // Sync data-holiday-theme attribute on documentElement for portals/modals
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-holiday-theme', activeHolidayTheme);
+    }
+  }, [activeHolidayTheme]);
+
+  const handleChangeHolidayTheme = (newTheme: HolidayThemePreference) => {
+    if (!canManageTheme) return;
+    const updatedSettings: SettingsConfig = {
+      ...settings,
+      holidayTheme: newTheme,
+      themeAnimationsEnabled: settings.themeAnimationsEnabled !== false
+    };
+    setSettings(updatedSettings);
+    saveSettings(updatedSettings);
+    saveGlobalSettingsToFirestore(updatedSettings);
+  };
+
   if (authChecking) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white space-y-4">
@@ -384,20 +418,38 @@ export default function App() {
 
   if (!currentUserProfile) {
     return (
-      <AuthLanding
-        onAuthSuccess={(profile) => {
-          setCurrentUserProfile(profile);
-          if (profile.role === 'admin') {
-            setIsAdminAuthenticated(true);
-          }
-        }}
-        adminPasscode={settings.adminPasscode || 'admin123'}
-      />
+      <div data-holiday-theme={activeHolidayTheme} className="relative min-h-screen">
+        <HolidayThemeOverlay
+          activeTheme={activeHolidayTheme}
+          animationsEnabled={animationsEnabled}
+        />
+        <AuthLanding
+          onAuthSuccess={(profile) => {
+            setCurrentUserProfile(profile);
+            if (profile.role === 'admin') {
+              setIsAdminAuthenticated(true);
+            }
+          }}
+          adminPasscode={settings.adminPasscode || 'admin123'}
+          activeHolidayTheme={activeHolidayTheme}
+        />
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
+    <div
+      data-holiday-theme={activeHolidayTheme}
+      className={`min-h-screen ${
+        activeHolidayTheme !== 'default' ? 'bg-transparent' : 'bg-slate-100'
+      } flex flex-col font-sans text-slate-900 relative`}
+    >
+      {/* Animated Holiday Background & Scene Overlay (Halloween, Christmas, New Year) */}
+      <HolidayThemeOverlay
+        activeTheme={activeHolidayTheme}
+        animationsEnabled={animationsEnabled}
+      />
+
       {/* Top Header Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -408,10 +460,13 @@ export default function App() {
         onLockAdminSession={handleLockAdminSession}
         currentUserProfile={currentUserProfile}
         onSignOut={handleSignOut}
+        activeHolidayTheme={activeHolidayTheme}
+        holidayThemePreference={settings.holidayTheme || 'auto'}
+        onChangeHolidayTheme={canManageTheme ? handleChangeHolidayTheme : undefined}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {activeTab === 'dashboard' && (
           <Dashboard
             onReportGenerated={handleReportGenerated}
@@ -427,6 +482,7 @@ export default function App() {
             onClearAllHistory={handleClearAllHistory}
             isAdminAuthenticated={isAdminAuthenticated}
             onRequestAdminLock={() => setShowAdminModal(true)}
+            activeHolidayTheme={activeHolidayTheme}
           />
         )}
 
@@ -473,7 +529,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'settings' && currentUserProfile?.role === 'admin' && (
+          {activeTab === 'settings' && (currentUserProfile?.role === 'admin' || isSuperAdmin(currentUserProfile)) && (
             <Settings
               settings={settings}
               onUpdateSettings={(newSettings) => {
@@ -526,21 +582,23 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="print:hidden border-t border-slate-800/80 bg-slate-900 py-6 text-slate-400 text-xs transition-colors">
+      <footer className="relative z-10 print:hidden border-t border-slate-800/80 bg-slate-900 py-6 text-slate-300 text-xs transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-slate-200">Sch EZ Trip</span>
+          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-semibold text-white">SchEZTrip</span>
             <span className="text-slate-600">•</span>
-            <span className="text-slate-400">Trip Analysis Automator</span>
+            <span className={activeHolidayTheme !== 'default' ? themeMeta.accentTextClass + ' font-semibold' : 'text-slate-400'}>
+              {themeMeta.footerTagline}
+            </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-slate-400">
-            <p className="text-slate-400">
-              © 2026 Scheduling Team - Trip Analysis Automator, All rights reserved.
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-slate-300">
+            <p className="text-slate-300">
+              © {new Date().getFullYear()} Scheduling Team - Trip Analysis Automator, All rights reserved.
             </p>
-            <span className="hidden sm:inline text-slate-800">|</span>
-            <p className="text-[10px] text-slate-600/70 font-normal select-none tracking-wide">
+            <span className="hidden sm:inline text-slate-700">|</span>
+            <p className="text-[10px] text-slate-400/80 font-normal select-none tracking-wide">
               Developed by Patrick Franz O.B.
             </p>
           </div>
