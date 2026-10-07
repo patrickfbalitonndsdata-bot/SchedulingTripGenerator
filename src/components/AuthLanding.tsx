@@ -34,15 +34,22 @@ import {
   ArrowLeft
 } from 'lucide-react';
 
+import { ActiveHolidayTheme } from '../types';
+import { getHolidayThemeMeta } from '../utils/holidayTheme';
+
 interface AuthLandingProps {
   onAuthSuccess: (profile: UserProfile) => void;
   adminPasscode?: string;
+  activeHolidayTheme?: ActiveHolidayTheme;
 }
 
 export const AuthLanding: React.FC<AuthLandingProps> = ({ 
   onAuthSuccess, 
-  adminPasscode = 'admin123' 
+  adminPasscode = 'admin123',
+  activeHolidayTheme = 'default'
 }) => {
+  const themeMeta = getHolidayThemeMeta(activeHolidayTheme);
+  const isHoliday = activeHolidayTheme !== 'default';
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   
   // Login State
@@ -245,22 +252,30 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 text-slate-100 font-sans relative overflow-hidden">
+    <div className={`min-h-screen ${isHoliday ? 'bg-transparent' : 'bg-slate-950'} flex flex-col justify-center items-center p-4 sm:p-6 text-slate-100 font-sans relative overflow-hidden`}>
       {/* Background Subtle Mesh Gradient */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      {!isHoliday && (
+        <>
+          <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        </>
+      )}
 
       <div className="max-w-md w-full space-y-6 relative z-10">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-900 border border-amber-500/30 text-amber-400 shadow-xl mb-1">
-            <Lock className="w-7 h-7" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-900/90 border border-amber-500/40 text-amber-400 shadow-xl mb-1">
+            {isHoliday ? (
+              <span className="text-3xl">{themeMeta.emoji}</span>
+            ) : (
+              <Lock className="w-7 h-7" />
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
             SchEZTrip
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 font-medium">
-            Trip Analysis Automator
+          <p className="text-xs sm:text-sm text-slate-300 font-medium">
+            {isHoliday ? themeMeta.bannerGreeting : 'Trip Analysis Automator'}
           </p>
         </div>
 
