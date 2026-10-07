@@ -23,6 +23,8 @@
         "technicians": { "type": "array", "items": { "type": "string" } },
         "regions": { "type": "array", "items": { "type": "string" } },
         "adminPasscode": { "type": "string" },
+        "holidayTheme": { "type": "string", "enum": ["auto", "default", "halloween", "christmas", "new_year"] },
+        "themeAnimationsEnabled": { "type": "boolean" },
         "updatedAt": { "type": "string" }
       }
     }
