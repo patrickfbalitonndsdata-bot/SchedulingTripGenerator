@@ -281,7 +281,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
     <div className="space-y-6">
       {/* Loaded Technicians Banner if multiple exist */}
       {activeReportsList.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-slate-900">
+        <div className="bg-white border-2 border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-slate-900 shadow-sm">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-amber-500 text-slate-950 font-black rounded-xl">
               <Users className="w-5 h-5" />
@@ -649,12 +649,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           onClick={() => !loading && fileInputRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all ${
+          className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all bg-white shadow-sm ${
             isDragging
-              ? 'border-amber-500 bg-amber-500/10 scale-[1.01]'
+              ? 'border-amber-500 ring-4 ring-amber-500/20 scale-[1.01]'
               : stagedFile
-              ? 'border-emerald-400 bg-emerald-50/30'
-              : 'border-slate-300 hover:border-amber-500 hover:bg-slate-50 bg-white shadow-sm'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+              : 'border-slate-300 hover:border-amber-500 hover:bg-slate-50'
           }`}
         >
           <input
