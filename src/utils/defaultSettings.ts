@@ -163,7 +163,9 @@ export const INITIAL_SETTINGS: SettingsConfig & { version?: number } = {
   fieldTimeBufferMinutes: 30,
   samsaraAutoExtract: true,
   defaultIssuesText: 'Assigned Project/s Completed\nNo Issue/s Found\nNote: -----',
-  adminPasscode: 'admin123'
+  adminPasscode: 'admin123',
+  holidayTheme: 'auto',
+  themeAnimationsEnabled: true
 };
 
 export function getStoredSettings(): SettingsConfig {
@@ -181,6 +183,12 @@ export function getStoredSettings(): SettingsConfig {
       // Migrate or replace jobTypes if using legacy list
       if (!parsed.jobTypes || parsed.jobTypes.includes('Maintenance') || parsed.jobTypes.includes('Inspection')) {
         parsed.jobTypes = INITIAL_SETTINGS.jobTypes;
+      }
+      if (!parsed.holidayTheme) {
+        parsed.holidayTheme = 'auto';
+      }
+      if (parsed.themeAnimationsEnabled === undefined) {
+        parsed.themeAnimationsEnabled = true;
       }
       return parsed;
     }
