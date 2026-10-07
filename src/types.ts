@@ -87,6 +87,9 @@ export interface TechnicianOption {
   active: boolean;
 }
 
+export type HolidayThemePreference = 'auto' | 'default' | 'halloween' | 'christmas' | 'new_year';
+export type ActiveHolidayTheme = 'default' | 'halloween' | 'christmas' | 'new_year';
+
 export interface SettingsConfig {
   regions: string[];
   jobTypes: string[];
@@ -96,4 +99,6 @@ export interface SettingsConfig {
   samsaraAutoExtract: boolean;
   defaultIssuesText: string;
   adminPasscode?: string;
+  holidayTheme?: HolidayThemePreference;
+  themeAnimationsEnabled?: boolean;
 }
