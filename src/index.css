@@ -1,1 +1,382 @@
 @import "tailwindcss";
+
+/* ============================================================================
+   HOLIDAY THEME KEYFRAME ANIMATIONS
+   ============================================================================ */
+
+@keyframes ghostFloatRight {
+  0% {
+    transform: translateX(-12vw) translateY(0px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateX(50vw) translateY(-22px);
+    opacity: 0.9;
+  }
+  90% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(112vw) translateY(8px);
+    opacity: 0;
+  }
+}
+
+@keyframes ghostFloatLeft {
+  0% {
+    transform: translateX(112vw) translateY(0px) scaleX(-1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateX(48vw) translateY(18px) scaleX(-1);
+    opacity: 0.9;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(-12vw) translateY(-10px) scaleX(-1);
+    opacity: 0;
+  }
+}
+
+@keyframes ghostBob {
+  0%, 100% {
+    transform: translateY(0px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(3deg);
+  }
+}
+
+@keyframes spiderDrop {
+  0%, 100% {
+    transform: translateY(-75px);
+  }
+  40%, 60% {
+    transform: translateY(15px);
+  }
+  50% {
+    transform: translateY(25px);
+  }
+}
+
+@keyframes halloweenLightning {
+  0%, 88%, 92%, 96%, 100% {
+    opacity: 0;
+  }
+  90% {
+    opacity: 0.85;
+  }
+  94% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes halloweenBolt1 {
+  0%, 89%, 93%, 100% {
+    opacity: 0;
+  }
+  90%, 91% {
+    opacity: 1;
+  }
+}
+
+@keyframes halloweenBolt2 {
+  0%, 44%, 48%, 100% {
+    opacity: 0;
+  }
+  45%, 46% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes reindeerFlight {
+  0% {
+    transform: translateX(-480px) translateY(35px) rotate(-5deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(52vw) translateY(-18px) rotate(-2deg);
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(115vw) translateY(-45px) rotate(-6deg);
+    opacity: 0;
+  }
+}
+
+@keyframes reindeerGallop {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(-3deg);
+  }
+}
+
+@keyframes snowfall {
+  0% {
+    transform: translateY(-20px) translateX(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(52vh) translateX(22px) rotate(180deg);
+  }
+  100% {
+    transform: translateY(105vh) translateX(-14px) rotate(360deg);
+  }
+}
+
+@keyframes starTwinkle {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+.animate-ghost-float-right {
+  animation: ghostFloatRight 26s linear infinite;
+}
+.animate-ghost-float-left {
+  animation: ghostFloatLeft 30s linear infinite;
+}
+.animate-ghost-bob {
+  animation: ghostBob 3.6s ease-in-out infinite;
+}
+.animate-spider-drop {
+  animation: spiderDrop 7.5s ease-in-out infinite;
+}
+.animate-halloween-lightning {
+  animation: halloweenLightning 11s infinite;
+}
+.animate-halloween-bolt-1 {
+  animation: halloweenBolt1 11s infinite;
+}
+.animate-halloween-bolt-2 {
+  animation: halloweenBolt2 14s infinite;
+}
+.animate-reindeer-flight {
+  animation: reindeerFlight 22s linear infinite;
+}
+.animate-reindeer-gallop {
+  animation: reindeerGallop 0.9s ease-in-out infinite;
+}
+.animate-snowfall {
+  animation: snowfall 10s linear infinite;
+}
+.animate-star-twinkle {
+  animation: starTwinkle 2.4s ease-in-out infinite;
+}
+
+/* ============================================================================
+   SYSTEM-WIDE HOLIDAY THEME OVERRIDES (Navbar, Footer, Cards, Buttons, Forms, Sheet)
+   Disabled automatically in @media print so PDF/Printed reports stay crisp!
+   ============================================================================ */
+
+@media screen {
+  /* --------------------------------------------------------------------------
+     1. HALLOWEEN THEME (Oct 20 - Nov 30): Spooky Cemetery, Pumpkin Orange & Violet
+     -------------------------------------------------------------------------- */
+  [data-holiday-theme="halloween"] header {
+    background: linear-gradient(90deg, rgba(16, 6, 30, 0.96) 0%, rgba(36, 12, 58, 0.96) 50%, rgba(18, 7, 33, 0.96) 100%) !important;
+    border-bottom-color: rgba(249, 115, 22, 0.45) !important;
+    box-shadow: 0 4px 25px rgba(249, 115, 22, 0.18) !important;
+  }
+
+  [data-holiday-theme="halloween"] footer {
+    background: linear-gradient(90deg, #0d0417 0%, #1c0930 50%, #0d0417 100%) !important;
+    border-top-color: rgba(249, 115, 22, 0.4) !important;
+  }
+
+  /* Cards & Containers in Halloween Theme */
+  [data-holiday-theme="halloween"] main .bg-white {
+    background-color: rgba(255, 250, 245, 0.94) !important;
+    border-color: rgba(234, 88, 12, 0.35) !important;
+    box-shadow: 0 8px 28px -6px rgba(15, 4, 28, 0.45), 0 0 0 1px rgba(249, 115, 22, 0.15) !important;
+  }
+
+  [data-holiday-theme="halloween"] main .bg-slate-900 {
+    background: linear-gradient(135deg, #160726 0%, #270e40 100%) !important;
+    border-color: rgba(249, 115, 22, 0.4) !important;
+  }
+
+  /* Buttons & Accents in Halloween Theme */
+  [data-holiday-theme="halloween"] .bg-amber-500 {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+    color: #090414 !important;
+  }
+
+  [data-holiday-theme="halloween"] .bg-amber-500:hover {
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 100%) !important;
+  }
+
+  /* Inputs & Form Controls in Halloween Theme */
+  [data-holiday-theme="halloween"] main input:not([type="checkbox"]),
+  [data-holiday-theme="halloween"] main select,
+  [data-holiday-theme="halloween"] main textarea {
+    border-color: rgba(234, 88, 12, 0.35) !important;
+  }
+
+  [data-holiday-theme="halloween"] main input:focus,
+  [data-holiday-theme="halloween"] main select:focus,
+  [data-holiday-theme="halloween"] main textarea:focus {
+    border-color: #f97316 !important;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.25) !important;
+  }
+
+  /* Trip Report Sheet Headers in Halloween Theme */
+  [data-holiday-theme="halloween"] .bg-\[\#fde047\] {
+    background: linear-gradient(90deg, #fb923c 0%, #f97316 50%, #c084fc 100%) !important;
+  }
+
+  [data-holiday-theme="halloween"] .bg-\[\#fef08a\] {
+    background-color: #ffedd5 !important;
+  }
+
+  [data-holiday-theme="halloween"] .bg-\[\#fefce8\] {
+    background-color: #fff7ed !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     2. CHRISTMAS THEME (December): Festive Pine Green, Holly Red & Warm Gold
+     -------------------------------------------------------------------------- */
+  [data-holiday-theme="christmas"] header {
+    background: linear-gradient(90deg, rgba(6, 40, 28, 0.96) 0%, rgba(127, 29, 29, 0.94) 50%, rgba(6, 40, 28, 0.96) 100%) !important;
+    border-bottom-color: rgba(251, 191, 36, 0.5) !important;
+    box-shadow: 0 4px 25px rgba(220, 38, 38, 0.2) !important;
+  }
+
+  [data-holiday-theme="christmas"] footer {
+    background: linear-gradient(90deg, #05261b 0%, #5c1414 50%, #05261b 100%) !important;
+    border-top-color: rgba(251, 191, 36, 0.45) !important;
+  }
+
+  /* Cards & Containers in Christmas Theme */
+  [data-holiday-theme="christmas"] main .bg-white {
+    background-color: rgba(252, 255, 253, 0.95) !important;
+    border-color: rgba(22, 163, 74, 0.32) !important;
+    box-shadow: 0 8px 28px -6px rgba(4, 28, 20, 0.45), 0 0 0 1px rgba(220, 38, 38, 0.14) !important;
+  }
+
+  [data-holiday-theme="christmas"] main .bg-slate-900 {
+    background: linear-gradient(135deg, #063022 0%, #581313 100%) !important;
+    border-color: rgba(251, 191, 36, 0.45) !important;
+  }
+
+  /* Buttons & Accents in Christmas Theme */
+  [data-holiday-theme="christmas"] .bg-amber-500 {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+    color: #ffffff !important;
+  }
+
+  [data-holiday-theme="christmas"] .bg-amber-500:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  }
+
+  /* Inputs & Form Controls in Christmas Theme */
+  [data-holiday-theme="christmas"] main input:not([type="checkbox"]),
+  [data-holiday-theme="christmas"] main select,
+  [data-holiday-theme="christmas"] main textarea {
+    border-color: rgba(22, 163, 74, 0.35) !important;
+  }
+
+  [data-holiday-theme="christmas"] main input:focus,
+  [data-holiday-theme="christmas"] main select:focus,
+  [data-holiday-theme="christmas"] main textarea:focus {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2) !important;
+  }
+
+  /* Trip Report Sheet Headers in Christmas Theme */
+  [data-holiday-theme="christmas"] .bg-\[\#fde047\] {
+    background: linear-gradient(90deg, #fca5a5 0%, #fde047 50%, #86efac 100%) !important;
+  }
+
+  [data-holiday-theme="christmas"] .bg-\[\#fef08a\] {
+    background-color: #dcfce7 !important;
+  }
+
+  [data-holiday-theme="christmas"] .bg-\[\#fefce8\] {
+    background-color: #f0fdf4 !important;
+  }
+
+  /* --------------------------------------------------------------------------
+     3. NEW YEAR THEME (Jan 1 - Jan 15): Midnight Celestial Navy & Champagne Gold
+     -------------------------------------------------------------------------- */
+  [data-holiday-theme="new_year"] header {
+    background: linear-gradient(90deg, rgba(5, 10, 31, 0.96) 0%, rgba(17, 24, 68, 0.96) 50%, rgba(5, 10, 31, 0.96) 100%) !important;
+    border-bottom-color: rgba(250, 204, 21, 0.5) !important;
+    box-shadow: 0 4px 25px rgba(250, 204, 21, 0.18) !important;
+  }
+
+  [data-holiday-theme="new_year"] footer {
+    background: linear-gradient(90deg, #04081c 0%, #0f1b4c 50%, #04081c 100%) !important;
+    border-top-color: rgba(250, 204, 21, 0.45) !important;
+  }
+
+  /* Cards & Containers in New Year Theme */
+  [data-holiday-theme="new_year"] main .bg-white {
+    background-color: rgba(248, 250, 255, 0.95) !important;
+    border-color: rgba(234, 179, 8, 0.38) !important;
+    box-shadow: 0 8px 30px -6px rgba(3, 8, 28, 0.5), 0 0 0 1px rgba(250, 204, 21, 0.18) !important;
+  }
+
+  [data-holiday-theme="new_year"] main .bg-slate-900 {
+    background: linear-gradient(135deg, #070e2c 0%, #172554 100%) !important;
+    border-color: rgba(250, 204, 21, 0.45) !important;
+  }
+
+  /* Buttons & Accents in New Year Theme */
+  [data-holiday-theme="new_year"] .bg-amber-500 {
+    background: linear-gradient(135deg, #fde047 0%, #eab308 100%) !important;
+    color: #020617 !important;
+  }
+
+  [data-holiday-theme="new_year"] .bg-amber-500:hover {
+    background: linear-gradient(135deg, #fef08a 0%, #facc15 100%) !important;
+  }
+
+  /* Inputs & Form Controls in New Year Theme */
+  [data-holiday-theme="new_year"] main input:not([type="checkbox"]),
+  [data-holiday-theme="new_year"] main select,
+  [data-holiday-theme="new_year"] main textarea {
+    border-color: rgba(99, 102, 241, 0.35) !important;
+  }
+
+  [data-holiday-theme="new_year"] main input:focus,
+  [data-holiday-theme="new_year"] main select:focus,
+  [data-holiday-theme="new_year"] main textarea:focus {
+    border-color: #eab308 !important;
+    box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.25) !important;
+  }
+
+  /* Trip Report Sheet Headers in New Year Theme */
+  [data-holiday-theme="new_year"] .bg-\[\#fde047\] {
+    background: linear-gradient(90deg, #fde047 0%, #93c5fd 50%, #fde047 100%) !important;
+  }
+
+  [data-holiday-theme="new_year"] .bg-\[\#fef08a\] {
+    background-color: #fef9c3 !important;
+  }
+
+  [data-holiday-theme="new_year"] .bg-\[\#fefce8\] {
+    background-color: #f8fafc !important;
+  }
+}
+
