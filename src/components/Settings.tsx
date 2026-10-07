@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { SettingsConfig, TechnicianOption } from '../types';
+import React, { useState, useEffect } from 'react';
+import { SettingsConfig, TechnicianOption, HolidayThemePreference } from '../types';
 import { saveSettings } from '../utils/defaultSettings';
 import { UserManagement } from './UserManagement';
-import { UserProfile } from '../lib/firebase';
-import { Users, MapPin, Wrench, Clock, Save, Plus, Trash2, CheckCircle2, Shield, Settings as SettingsIcon, UserCog, Pencil, Check, X, Search } from 'lucide-react';
+import { UserProfile, isSuperAdmin } from '../lib/firebase';
+import { HOLIDAY_THEME_OPTIONS, getDateBasedHolidayTheme, getHolidayThemeMeta, resolveActiveHolidayTheme } from '../utils/holidayTheme';
+import { Users, MapPin, Wrench, Clock, Save, Plus, Trash2, CheckCircle2, Shield, Settings as SettingsIcon, UserCog, Pencil, Check, X, Search, Palette, Sparkles } from 'lucide-react';
 
 interface SettingsProps {
   settings: SettingsConfig;
@@ -16,6 +17,36 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
   const [activeSubTab, setActiveSubTab] = useState<'roster' | 'users'>('roster');
   const [localSettings, setLocalSettings] = useState<SettingsConfig>({ ...settings });
   const [savedToast, setSavedToast] = useState(false);
+
+  const canManageTheme = currentUserProfile?.role === 'admin' || isSuperAdmin(currentUserProfile);
+
+  useEffect(() => {
+    setLocalSettings({ ...settings });
+  }, [settings]);
+
+  const handleSelectHolidayTheme = (themePref: HolidayThemePreference) => {
+    if (!canManageTheme) return;
+    const updated: SettingsConfig = {
+      ...localSettings,
+      holidayTheme: themePref,
+      themeAnimationsEnabled: localSettings.themeAnimationsEnabled !== false
+    };
+    setLocalSettings(updated);
+    saveSettings(updated);
+    onUpdateSettings(updated);
+  };
+
+  const handleToggleThemeAnimations = () => {
+    if (!canManageTheme) return;
+    const nextAnim = localSettings.themeAnimationsEnabled === false ? true : false;
+    const updated: SettingsConfig = {
+      ...localSettings,
+      themeAnimationsEnabled: nextAnim
+    };
+    setLocalSettings(updated);
+    saveSettings(updated);
+    onUpdateSettings(updated);
+  };
 
   // Technician handlers
   const [newTechName, setNewTechName] = useState('');
@@ -206,6 +237,104 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
         />
       ) : (
         <>
+
+      {/* Admin / Superadmin Exclusive: Holiday Theme & Seasonal Animations Selector */}
+      {canManageTheme && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <Palette className="w-5 h-5 text-amber-600" />
+                <span>System Holiday Theme & Seasonal Animations</span>
+                <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-300 rounded-md">
+                  Admin / Superadmin Only
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Select a system holiday theme or leave on <strong>Auto (Based on Date)</strong>. Regular users do not see the theme picker and automatically receive the active theme with animations playing by default.
+              </p>
+            </div>
+
+            {/* Animation Playing Toggle (On by default) */}
+            <div className="flex items-center space-x-3 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <div className="text-xs">
+                <span className="font-bold text-slate-800 block">Theme Animations</span>
+                <span className="text-[10px] text-emerald-600 font-semibold">
+                  {localSettings.themeAnimationsEnabled !== false ? 'Playing (Default)' : 'Paused'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleThemeAnimations}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 cursor-pointer ${
+                  localSettings.themeAnimationsEnabled !== false ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+                title="Toggle Holiday Theme Animations"
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                    localSettings.themeAnimationsEnabled !== false ? 'translate-x-4.5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Theme Option Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {HOLIDAY_THEME_OPTIONS.map((opt) => {
+              const currentPref = localSettings.holidayTheme || 'auto';
+              const isSelected = currentPref === opt.value;
+              const autoDateTheme = getDateBasedHolidayTheme();
+              const autoMeta = getHolidayThemeMeta(autoDateTheme);
+
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleSelectHolidayTheme(opt.value)}
+                  className={`text-left p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 relative ${
+                    isSelected
+                      ? 'border-amber-500 bg-amber-50/70 shadow-md ring-2 ring-amber-500/20'
+                      : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-2xl">{opt.emoji}</span>
+                      {isSelected && (
+                        <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] rounded-full uppercase flex items-center gap-1">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                          <span>Active</span>
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                      {opt.label}
+                    </h3>
+                    <p className="text-[11px] font-bold text-amber-700">
+                      {opt.dateRange}
+                    </p>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      {opt.description}
+                    </p>
+                  </div>
+
+                  {opt.value === 'auto' && (
+                    <div className="pt-2 mt-1 border-t border-amber-200/60 text-[10px] font-semibold text-slate-700 flex items-center justify-between">
+                      <span>Current Date Resolution:</span>
+                      <span className="font-bold text-amber-800">
+                        {autoMeta.emoji} {autoMeta.shortLabel}
+                      </span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Technician Roster */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
